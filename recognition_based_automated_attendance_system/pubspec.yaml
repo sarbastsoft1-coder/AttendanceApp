@@ -1,0 +1,70 @@
+name: recognition_based_automated_attendance_system
+description: "Facial Recognition Attendance System"
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # HTTP & Networking
+  dio: ^5.4.0
+
+  # State Management
+  provider: ^6.1.1
+
+  # Camera & Image
+  camera: ^0.10.5+5
+  image_picker: ^1.0.5
+
+  # Storage
+  flutter_secure_storage: ^9.0.0
+  shared_preferences: ^2.2.2
+
+  # Utilities
+  intl: ^0.18.1
+
+  # UI Components
+  google_fonts: ^6.1.0
+  flutter_animate: ^4.5.0
+  shimmer: ^3.0.0
+  cached_network_image: ^3.3.1
+  fl_chart: ^0.66.2
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  camera_windows: ^0.2.6+4
+  window_manager: ^0.4.3
+
+  # QR Code
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.2.3
+
+  # PDF Generation & Printing
+  pdf: ^3.10.8
+  printing: ^5.12.0
+
+  # File Picker (CSV import)
+  file_picker: ^8.0.3
+
+  # URL Launcher (open files / links)
+  url_launcher: ^6.2.5
+
+  # Table Calendar (attendance calendar view)
+  table_calendar: ^3.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/

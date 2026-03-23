@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Flutter/Dart (if any at root)
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+.qodo/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Zip files
+*.zip

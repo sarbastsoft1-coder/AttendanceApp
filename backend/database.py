@@ -1,0 +1,325 @@
+"""
+Database configuration with PostgreSQL and SQLAlchemy models
+"""
+import os
+from datetime import datetime
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Float, ForeignKey, Text, LargeBinary
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+
+load_dotenv()
+
+# Database URL from environment - Default to SQLite for easy setup
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./attendance.db")
+
+# Create engine
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(DATABASE_URL)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+
+# ========================
+# DATABASE MODELS
+# ========================
+
+class User(Base):
+    """User model for students, teachers, and admins"""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    full_name = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+
+    # User details
+    phone = Column(String(20), nullable=True)
+    department = Column(String(100), nullable=True)
+
+    # Role: admin, teacher, student, employee
+    role = Column(String(50), default="student")
+
+    # Face recognition data
+    face_encoding = Column(Text, nullable=True)  # JSON encoded face encoding
+    face_image_path = Column(String(500), nullable=True)
+    has_registered_face = Column(Boolean, default=False)
+
+    # Status
+    is_active = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    verification_token = Column(String(64), nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    attendances = relationship("Attendance", back_populates="user")
+    leave_requests = relationship("LeaveRequest", back_populates="user", foreign_keys="LeaveRequest.user_id")
+    notifications = relationship("Notification", back_populates="user")
+    audit_logs = relationship("AuditLog", back_populates="actor", foreign_keys="AuditLog.actor_id")
+
+
+class Attendance(Base):
+    """Attendance record model"""
+    __tablename__ = "attendance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # Date and time
+    date = Column(DateTime, default=datetime.utcnow, index=True)
+    check_in_time = Column(DateTime, nullable=True)
+    check_out_time = Column(DateTime, nullable=True)
+
+    # Recognition details
+    confidence = Column(Float, nullable=True)  # 0-1 confidence score
+    method = Column(String(20), default="face")  # face, manual, qr_code, room_scan
+
+    # Status: present, late, absent, half_day
+    status = Column(String(20), default="present")
+
+    # Location (optional)
+    location = Column(String(255), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+
+    # Notes
+    notes = Column(String(500), nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="attendances")
+
+
+class Class(Base):
+    """Class model for grouping students"""
+    __tablename__ = "classes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    teacher = relationship("User")
+    students = relationship("Student", back_populates="class_ref")
+    qr_sessions = relationship("QRSession", back_populates="class_ref")
+
+
+class Student(Base):
+    """Student model - managed by teachers, not separate accounts"""
+    __tablename__ = "students"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    class_id = Column(Integer, ForeignKey("classes.id"), nullable=False)
+
+    # Face recognition data
+    face_encoding = Column(Text, nullable=True)  # JSON encoded face encoding
+    face_image_path = Column(String(500), nullable=True)
+    has_registered_face = Column(Boolean, default=False)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    class_ref = relationship("Class", back_populates="students")
+    leave_requests = relationship("LeaveRequest", back_populates="student", foreign_keys="LeaveRequest.student_id")
+
+
+# ========================
+# PASSWORD RESET
+# ========================
+
+class PasswordResetToken(Base):
+    """Password reset token model"""
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token = Column(String(64), unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
+
+
+# ========================
+# LEAVE REQUESTS
+# ========================
+
+class LeaveRequest(Base):
+    """Leave/absence request submitted by a user or for a student"""
+    __tablename__ = "leave_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Either a User (registered account) or a Student (teacher-managed) can have a leave request
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=True)
+
+    # Who submitted this request (teacher submitting for student, or user themselves)
+    submitted_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    leave_date = Column(DateTime, nullable=False)
+    reason = Column(Text, nullable=False)
+
+    # Status: pending, approved, rejected
+    status = Column(String(20), default="pending")
+
+    # Reviewer
+    reviewed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    review_note = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="leave_requests", foreign_keys=[user_id])
+    student = relationship("Student", back_populates="leave_requests", foreign_keys=[student_id])
+    submitted_by = relationship("User", foreign_keys=[submitted_by_id])
+    reviewed_by = relationship("User", foreign_keys=[reviewed_by_id])
+
+
+# ========================
+# SYSTEM SETTINGS
+# ========================
+
+class Setting(Base):
+    """System-wide configurable settings"""
+    __tablename__ = "settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, index=True, nullable=False)
+    value = Column(Text, nullable=False)
+    description = Column(String(500), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    updated_by = relationship("User")
+
+
+# ========================
+# AUDIT LOG
+# ========================
+
+class AuditLog(Base):
+    """Audit trail of admin/teacher actions"""
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    actor_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # nullable for system actions
+    action = Column(String(100), nullable=False)   # e.g. "delete_student", "update_attendance"
+    target_type = Column(String(50), nullable=True)  # e.g. "Student", "Attendance"
+    target_id = Column(Integer, nullable=True)
+    detail = Column(Text, nullable=True)           # JSON or plain description
+    ip_address = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    actor = relationship("User", back_populates="audit_logs", foreign_keys=[actor_id])
+
+
+# ========================
+# QR SESSIONS
+# ========================
+
+class QRSession(Base):
+    """Short-lived QR code session for a class attendance check-in"""
+    __tablename__ = "qr_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    class_id = Column(Integer, ForeignKey("classes.id"), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token = Column(String(64), unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, default=True)
+    # Date this session is for
+    session_date = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    class_ref = relationship("Class", back_populates="qr_sessions")
+    teacher = relationship("User")
+
+
+# ========================
+# NOTIFICATIONS
+# ========================
+
+class Notification(Base):
+    """In-app notifications for users"""
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    # Types: attendance, leave, system, alert
+    type = Column(String(50), default="system")
+    is_read = Column(Boolean, default=False)
+    # Optional link data
+    related_type = Column(String(50), nullable=True)  # e.g. "leave_request"
+    related_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    user = relationship("User", back_populates="notifications")
+
+
+# ========================
+# DATABASE UTILITIES
+# ========================
+
+def get_db():
+    """Dependency to get database session"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def init_db():
+    """Initialize database tables and seed default settings"""
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created successfully.")
+
+    # Seed default settings if they don't exist
+    db = SessionLocal()
+    try:
+        defaults = [
+            ("late_threshold_hour",   "9",    "Hour (0-23) after which check-in is considered late"),
+            ("late_threshold_minute", "0",    "Minute after which check-in is considered late"),
+            ("min_face_images",       "3",    "Minimum face images required for registration"),
+            ("max_face_images",       "10",   "Maximum face images allowed for registration"),
+            ("attendance_alert_pct",  "75",   "Attendance percentage below which an alert is triggered"),
+            ("qr_session_minutes",    "15",   "Minutes a QR attendance session stays valid"),
+            ("allow_manual_entry",    "true", "Allow teachers to manually mark attendance"),
+            ("allow_qr_attendance",   "true", "Allow QR code attendance"),
+            ("allow_face_attendance", "true", "Allow face recognition attendance"),
+            ("app_name",              "Face Attendance System", "Application display name"),
+        ]
+        for key, value, description in defaults:
+            existing = db.query(Setting).filter(Setting.key == key).first()
+            if not existing:
+                db.add(Setting(key=key, value=value, description=description))
+        db.commit()
+        print("Default settings seeded.")
+    except Exception as e:
+        print(f"Warning: Could not seed settings: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    init_db()

@@ -1,0 +1,7 @@
+[info] Use the null-aware marker '?' rather than a null check via an 'if' (C:\Users\sarba\OneDrive\Desktop\project kolez\recognition_based_automated_attendance_system\lib\providers\attendance_provider.dart:209:11)
+[info] Use the null-aware marker '?' rather than a null check via an 'if' (C:\Users\sarba\OneDrive\Desktop\project kolez\recognition_based_automated_attendance_system\lib\providers\auth_provider.dart:215:11)
+[info] Use the null-aware marker '?' rather than a null check via an 'if' (C:\Users\sarba\OneDrive\Desktop\project kolez\recognition_based_automated_attendance_system\lib\providers\auth_provider.dart:216:11)
+[info] Use the null-aware marker '?' rather than a null check via an 'if' (C:\Users\sarba\OneDrive\Desktop\project kolez\recognition_based_automated_attendance_system\lib\providers\auth_provider.dart:217:11)
+[warning] The member 'setState' can only be used within instance members of subclasses of 'State' (C:\Users\sarba\OneDrive\Desktop\project kolez\recognition_based_automated_attendance_system\lib\screens\home_screen.dart:283:77)
+[error] The named parameter 'isSecondary' isn't defined (C:\Users\sarba\OneDrive\Desktop\project kolez\recognition_based_automated_attendance_system\lib\screens\room_scanner_screen.dart:210:13)
+[info] Don't use 'BuildContext's across async gaps (C:\Users\sarba\OneDrive\Desktop\project kolez\recognition_based_automated_attendance_system\lib\screens\room_scanner_screen.dart:72:28)

@@ -1,0 +1,34 @@
+# FastAPI - Modern web framework for building APIs
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# Database - PostgreSQL
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+alembic==1.13.1
+
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Environment variables
+python-dotenv==1.0.0
+
+# Face Recognition
+opencv-python==4.9.0.80
+numpy==1.26.3
+face-recognition==1.3.0
+
+# Utilities
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-dateutil==2.8.2
+
+# Image processing
+Pillow==10.2.0
+
+# Object Detection (for exam proctoring)
+ultralytics==8.1.0
+torch>=2.0.0
+torchvision>=0.15.0
