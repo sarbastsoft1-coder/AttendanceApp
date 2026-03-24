@@ -1,0 +1,170 @@
+﻿Starting migration from SQLite to PostgreSQL...
+Clearing existing data...
+Copying data...
+Migrating table 'users'...
+python : Traceback 
+(most recent call 
+last):
+At line:1 char:1
++ python 
+migrate_db.py > 
+migrate_err.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (Traceback    
+ (most recent call    
+ last)::String) [    
+], RemoteExceptio    n
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\engine\
+base.py", line 1967, 
+in 
+_exec_single_context
+    self.dialect.do_ex
+ecute(
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\engine\
+default.py", line 
+952, in do_execute
+    cursor.execute(sta
+tement, parameters)
+sqlite3.OperationalErr
+or: no such column: us
+ers.verification_token
+
+The above exception 
+was the direct cause 
+of the following 
+exception:
+
+Traceback (most 
+recent call last):
+  File "C:\AttendanceA
+pp\backend\migrate_db.
+py", line 55, in 
+<module>
+    migrate()
+  File "C:\AttendanceA
+pp\backend\migrate_db.
+py", line 37, in 
+migrate
+    records = src_conn
+.execute(table.select(
+)).fetchall()
+              ^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\engine\
+base.py", line 1419, 
+in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\sql\ele
+ments.py", line 527, 
+in 
+_execute_on_connection
+    return connection.
+_execute_clauseelement
+(
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\engine\
+base.py", line 1641, 
+in 
+_execute_clauseelement
+    ret = 
+self._execute_context(
+          
+^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\engine\
+base.py", line 1846, 
+in _execute_context
+    return self._exec_
+single_context(
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\engine\
+base.py", line 1986, 
+in 
+_exec_single_context
+    self._handle_dbapi
+_exception(
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\engine\
+base.py", line 2363, 
+in _handle_dbapi_excep
+tion
+    raise sqlalchemy_e
+xception.with_tracebac
+k(exc_info[2]) from e
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\engine\
+base.py", line 1967, 
+in 
+_exec_single_context
+    self.dialect.do_ex
+ecute(
+  File "C:\Users\sarba
+\AppData\Roaming\Pytho
+n\Python312\site-packa
+ges\sqlalchemy\engine\
+default.py", line 
+952, in do_execute
+    cursor.execute(sta
+tement, parameters)
+sqlalchemy.exc.Operati
+onalError: (sqlite3.Op
+erationalError) no 
+such column: users.ver
+ification_token
+[SQL: SELECT 
+users.id, 
+users.email, 
+users.full_name, users
+.hashed_password, 
+users.phone, 
+users.department, 
+users.role, 
+users.face_encoding, u
+sers.face_image_path, 
+users.has_registered_f
+ace, users.is_active, 
+users.is_verified, use
+rs.verification_token,
+ users.created_at, 
+users.updated_at 
+FROM users]
+(Background on this 
+error at: https://sqla
+lche.me/e/20/e3q8)

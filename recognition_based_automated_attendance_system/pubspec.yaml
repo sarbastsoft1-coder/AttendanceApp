@@ -28,7 +28,7 @@ dependencies:
   shared_preferences: ^2.2.2
 
   # Utilities
-  intl: ^0.18.1
+  intl: any
 
   # UI Components
   google_fonts: ^6.1.0

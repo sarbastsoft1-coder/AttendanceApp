@@ -131,9 +131,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     : () async {
                         if (!formKey.currentState!.validate()) return;
 
-                        final success = await auth.forgotPassword(
+                        final token = await auth.forgotPassword(
                           forgotEmailController.text.trim(),
                         );
+                        final success = token != null;
 
                         if (!context.mounted) return;
                         Navigator.pop(context);

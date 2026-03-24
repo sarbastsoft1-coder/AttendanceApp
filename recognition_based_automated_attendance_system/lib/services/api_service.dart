@@ -58,6 +58,20 @@ class ApiService {
     _authToken = null;
   }
 
+  /// Update the base URL dynamically
+  void setBaseUrl(String url) {
+    _dio.options.baseUrl = url;
+  }
+
+  /// Create a test Dio instance for trying a new URL
+  Dio createTestDio(String url) {
+    return Dio(BaseOptions(
+      baseUrl: url,
+      connectTimeout: Duration(milliseconds: ApiConfig.connectionTimeout),
+      receiveTimeout: Duration(milliseconds: ApiConfig.receiveTimeout),
+    ));
+  }
+
   /// GET request
   Future<Response> get(
     String path, {
