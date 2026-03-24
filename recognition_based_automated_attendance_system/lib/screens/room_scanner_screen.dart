@@ -105,51 +105,80 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
     await _initializeCamera();
   }
 
+
   Future<void> _initializeCamera() async {
-    await _controller?.dispose();
+    // Fully dispose old controller first, set to null immediately
+    final oldController = _controller;
     _controller = null;
+    try {
+      await oldController?.dispose();
+    } catch (_) {}
+
+    if (!mounted) return;
 
     final cameras = await availableCameras();
     if (cameras.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _isInitializing = false;
-        });
-      }
+      if (mounted) setState(() => _isInitializing = false);
       return;
     }
 
     final backCamera = CameraSelector.forRoomScan(cameras);
     _rotationPreferenceKey = _buildRotationPreferenceKey(backCamera);
 
-    _controller = CameraController(
-      backCamera,
-      ResolutionPreset.high,
-      enableAudio: false,
-    );
+    // On Windows, the camera device can take time to release.
+    // Retry up to 3 times with increasing delays.
+    const delays = [500, 1000, 2000];
+    bool initialized = false;
 
-    try {
-      await _controller!.initialize();
-      if (_rotationPreferenceKey != null) {
-        _previewQuarterTurns = await _loadSavedRotation(
-          camera: backCamera,
-          preferenceKey: _rotationPreferenceKey!,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error initializing camera: $e')),
-        );
+    for (final delayMs in delays) {
+      await Future.delayed(Duration(milliseconds: delayMs));
+      if (!mounted) return;
+
+      try {
+        await _controller?.dispose();
+      } catch (_) {}
+      _controller = null;
+
+      _controller = CameraController(
+        backCamera,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+
+      try {
+        await _controller!.initialize();
+        initialized = true;
+        break; // Success — stop retrying
+      } catch (e) {
+        // Camera still busy, will retry
+        try { await _controller?.dispose(); } catch (_) {}
+        _controller = null;
+        if (delayMs == delays.last) {
+          // All retries exhausted
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Camera is busy. Close any other app using the camera and try again.',
+                ),
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+        }
       }
     }
 
-    if (mounted) {
-      setState(() {
-        _isInitializing = false;
-      });
+    if (initialized && _rotationPreferenceKey != null && mounted) {
+      _previewQuarterTurns = await _loadSavedRotation(
+        camera: backCamera,
+        preferenceKey: _rotationPreferenceKey!,
+      );
     }
+
+    if (mounted) setState(() => _isInitializing = false);
   }
+
 
   Future<void> _captureAndScan() async {
     if (_controller == null ||
@@ -230,7 +259,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
             icon: const Icon(Icons.class_rounded),
             tooltip: 'Change Class',
             onPressed: () async {
-              await _controller?.dispose();
+              final oldController = _controller;
               _controller = null;
               if (!mounted) return;
               setState(() {
@@ -238,6 +267,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
                 _result = null;
                 _isInitializing = true;
               });
+              try { await oldController?.dispose(); } catch (_) {}
             },
           ),
           if (_result == null)

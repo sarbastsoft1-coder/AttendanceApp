@@ -1104,7 +1104,7 @@ async def room_scan(
                 total_students=len(expected_students),
                 present_users=[],
                 absent_users=[_student_to_user_response(s, class_obj.name) for s in expected_students],
-                message="No faces detected. All students marked absent."
+                message="No faces were detected in the image. Make sure faces are clearly visible and well-lit, then retry."
             )
 
         unknown_encodings = await asyncio.to_thread(
@@ -1125,13 +1125,24 @@ async def room_scan(
         present_students = [s for s in expected_students if s.id in present_ids]
         absent_students = [s for s in expected_students if s.id not in present_ids]
 
+        faces_detected = len(face_locations)
+        if len(present_students) == 0 and faces_detected > 0:
+            msg = (
+                f"{faces_detected} face(s) were detected in the image but none matched any "
+                f"registered student in '{class_obj.name}'. "
+                "Make sure students have registered their faces first."
+            )
+        elif faces_detected == 0:
+            msg = "No faces were detected in the image. Make sure faces are clearly visible and well-lit."
+        else:
+            msg = f"Found {len(present_students)} of {len(expected_students)} students in {class_obj.name}."
         return RoomScanResponse(
             present_count=len(present_students),
             absent_count=len(absent_students),
             total_students=len(expected_students),
             present_users=[_student_to_user_response(s, class_obj.name) for s in present_students],
             absent_users=[_student_to_user_response(s, class_obj.name) for s in absent_students],
-            message=f"Found {len(present_students)} of {len(expected_students)} students in {class_obj.name}."
+            message=msg
         )
 
     # ── Legacy user/department scan ───────────────────────────────────────────
@@ -1146,7 +1157,7 @@ async def room_scan(
             total_students=len(all_students),
             present_users=[],
             absent_users=[_user_to_response(u) for u in all_students],
-            message="No faces detected. All students marked absent."
+            message="No faces were detected in the image. Make sure faces are clearly visible and well-lit, then retry."
         )
 
     unknown_encodings = await asyncio.to_thread(
