@@ -28,10 +28,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
 
   void _loadAttendance() {
     final provider = context.read<AttendanceProvider>();
-    provider.fetchAllAttendance(
-      startDate: _startDate,
-      endDate: _endDate,
-    );
+    provider.fetchAllAttendance(startDate: _startDate, endDate: _endDate);
   }
 
   Future<void> _selectDateRange() async {
@@ -90,10 +87,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
             onPressed: _selectDateRange,
           ),
           if (_startDate != null || _statusFilter != 'all')
-            IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: _clearFilters,
-            ),
+            IconButton(icon: const Icon(Icons.clear), onPressed: _clearFilters),
           IconButton(
             icon: const Icon(Icons.download_rounded),
             tooltip: 'Export CSV',
@@ -116,7 +110,10 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                 // Date Range Display
                 if (_startDate != null && _endDate != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
                       color: AppTheme.primaryColor.withValues(alpha: 0.1),
@@ -169,10 +166,12 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                 }
 
                 var records = provider.allAttendance;
-                
+
                 // Apply status filter
                 if (_statusFilter != 'all') {
-                  records = records.where((a) => a.status == _statusFilter).toList();
+                  records = records
+                      .where((a) => a.status == _statusFilter)
+                      .toList();
                 }
 
                 if (records.isEmpty) {
@@ -245,16 +244,25 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
 
   void _exportCSV(BuildContext context) async {
     final provider = context.read<AttendanceProvider>();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Preparing CSV report...')),
-    );
-    await provider.exportAttendance(
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Preparing CSV report...')));
+    final filePath = await provider.exportAttendance(
       start: _startDate,
       end: _endDate,
     );
-    if (mounted) {
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Attendance report exported successfully')),
+        SnackBar(
+          content: Text(
+            filePath == null
+                ? 'Failed to export attendance report'
+                : 'Attendance report saved to $filePath',
+          ),
+          backgroundColor: filePath == null
+              ? AppTheme.errorColor
+              : AppTheme.successColor,
+        ),
       );
     }
   }
@@ -269,12 +277,18 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
           children: [
             ListTile(
               title: const Text('Present'),
-              leading: const Icon(Icons.check_circle, color: AppTheme.successColor),
+              leading: const Icon(
+                Icons.check_circle,
+                color: AppTheme.successColor,
+              ),
               onTap: () => _updateStatus(context, attendance, 'present'),
             ),
             ListTile(
               title: const Text('Late'),
-              leading: const Icon(Icons.access_time, color: AppTheme.warningColor),
+              leading: const Icon(
+                Icons.access_time,
+                color: AppTheme.warningColor,
+              ),
               onTap: () => _updateStatus(context, attendance, 'late'),
             ),
             ListTile(
@@ -288,17 +302,28 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     );
   }
 
-  void _updateStatus(BuildContext context, Attendance attendance, String status) async {
+  void _updateStatus(
+    BuildContext context,
+    Attendance attendance,
+    String status,
+  ) async {
     final provider = context.read<AttendanceProvider>();
     Navigator.of(context).pop(); // Close dialog
-    
-    final success = await provider.updateAttendanceStatus(attendance.id, status);
-    
-    if (mounted) {
+
+    final success = await provider.updateAttendanceStatus(
+      attendance.id,
+      status,
+    );
+
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? 'Status updated successfully' : 'Failed to update status'),
-          backgroundColor: success ? AppTheme.successColor : AppTheme.errorColor,
+          content: Text(
+            success ? 'Status updated successfully' : 'Failed to update status',
+          ),
+          backgroundColor: success
+              ? AppTheme.successColor
+              : AppTheme.errorColor,
         ),
       );
     }
@@ -346,88 +371,74 @@ class _AttendanceCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // User Avatar
-          CircleAvatar(
-            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-            child: Text(
-              attendance.user?.fullName.isNotEmpty == true
-                  ? attendance.user!.fullName[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primaryColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // User Avatar
+            CircleAvatar(
+              backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+              child: Text(
+                attendance.displayName.isNotEmpty
+                    ? attendance.displayName[0].toUpperCase()
+                    : '?',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryColor,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
 
-          // Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  attendance.user?.fullName ?? 'Unknown',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
+            // Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    attendance.displayName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  DateFormat('EEEE, MMM d, yyyy').format(attendance.date),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 4,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.login,
-                          size: 14,
-                          color: Colors.grey.shade500,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          attendance.checkInTime != null
-                              ? DateFormat('hh:mm a').format(attendance.checkInTime!)
-                              : 'N/A',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
+                  if (attendance.className?.trim().isNotEmpty == true)
+                    Text(
+                      attendance.className!.trim(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
-                    if (attendance.checkOutTime != null)
+                  const SizedBox(height: 2),
+                  Text(
+                    DateFormat('EEEE, MMM d, yyyy').format(attendance.date),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.logout,
+                            Icons.login,
                             size: 14,
                             color: Colors.grey.shade500,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            DateFormat('hh:mm a').format(attendance.checkOutTime!),
+                            attendance.checkInTime != null
+                                ? DateFormat(
+                                    'hh:mm a',
+                                  ).format(attendance.checkInTime!)
+                                : 'N/A',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -435,45 +446,59 @@ class _AttendanceCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Status Badge
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 6,
-            ),
-            decoration: BoxDecoration(
-              color: _statusColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _statusIcon,
-                  size: 14,
-                  color: _statusColor,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  attendance.statusDisplay,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _statusColor,
+                      if (attendance.checkOutTime != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.logout,
+                              size: 14,
+                              color: Colors.grey.shade500,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat(
+                                'hh:mm a',
+                              ).format(attendance.checkOutTime!),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+
+            // Status Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_statusIcon, size: 14, color: _statusColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    attendance.statusDisplay,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _statusColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }

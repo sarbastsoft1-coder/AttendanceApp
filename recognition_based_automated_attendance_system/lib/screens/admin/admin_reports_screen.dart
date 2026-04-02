@@ -206,19 +206,13 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   ),
                 ],
               ),
             ),
             if (isSelected)
-              const Icon(
-                Icons.check_circle,
-                color: AppTheme.primaryColor,
-              ),
+              const Icon(Icons.check_circle, color: AppTheme.primaryColor),
           ],
         ),
       ),
@@ -265,10 +259,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
           children: [
             Text(
               label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 4),
             Row(
@@ -281,9 +272,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                 const SizedBox(width: 8),
                 Text(
                   DateFormat('MMM d, yyyy').format(date),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -293,7 +282,11 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
     );
   }
 
-  Widget _buildQuickReportCard(String title, IconData icon, VoidCallback onTap) {
+  Widget _buildQuickReportCard(
+    String title,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -310,10 +303,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
             const SizedBox(height: 8),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -337,59 +327,68 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       await provider.fetchHistory(startDate: _startDate, endDate: _endDate);
 
       final history = provider.history;
-      
+
       // Generate CSV content
       final buffer = StringBuffer();
-      
+
       if (_reportType == 'summary') {
         buffer.writeln('Attendance Summary Report');
-        buffer.writeln('Period: ${DateFormat('MMM d, yyyy').format(_startDate)} - ${DateFormat('MMM d, yyyy').format(_endDate)}');
+        buffer.writeln(
+          'Period: ${DateFormat('MMM d, yyyy').format(_startDate)} - ${DateFormat('MMM d, yyyy').format(_endDate)}',
+        );
         buffer.writeln('');
         buffer.writeln('Status,Count');
-        
+
         final presentCount = history.where((a) => a.status == 'present').length;
         final lateCount = history.where((a) => a.status == 'late').length;
         final absentCount = history.where((a) => a.status == 'absent').length;
-        
+
         buffer.writeln('Present,$presentCount');
         buffer.writeln('Late,$lateCount');
         buffer.writeln('Absent,$absentCount');
         buffer.writeln('Total,${history.length}');
       } else if (_reportType == 'detailed') {
-        buffer.writeln('Date,Name,Email,Status,Check-In,Check-Out,Confidence');
+        buffer.writeln(
+          'Date,Name,Class,Email,Status,Check-In,Check-Out,Confidence',
+        );
         for (final record in history) {
           buffer.writeln(
             '${DateFormat('yyyy-MM-dd').format(record.date)},'
-            '${record.user?.fullName ?? "Unknown"},'
-            '${record.user?.email ?? ""},'
+            '${_csvCell(record.displayName)},'
+            '${_csvCell(record.className ?? record.user?.department ?? "")},'
+            '${_csvCell(record.user?.email ?? "")},'
             '${record.status},'
             '${record.checkInTime != null ? DateFormat('HH:mm').format(record.checkInTime!) : ""},'
             '${record.checkOutTime != null ? DateFormat('HH:mm').format(record.checkOutTime!) : ""},'
-            '${record.confidence ?? ""}'
+            '${record.confidence ?? ""}',
           );
         }
       } else {
         buffer.writeln('Absent Report');
-        buffer.writeln('Period: ${DateFormat('MMM d, yyyy').format(_startDate)} - ${DateFormat('MMM d, yyyy').format(_endDate)}');
+        buffer.writeln(
+          'Period: ${DateFormat('MMM d, yyyy').format(_startDate)} - ${DateFormat('MMM d, yyyy').format(_endDate)}',
+        );
         buffer.writeln('');
-        buffer.writeln('Date,Name,Email');
+        buffer.writeln('Date,Name,Class,Email');
         for (final record in history.where((a) => a.status == 'absent')) {
           buffer.writeln(
             '${DateFormat('yyyy-MM-dd').format(record.date)},'
-            '${record.user?.fullName ?? "Unknown"},'
-            '${record.user?.email ?? ""}'
+            '${_csvCell(record.displayName)},'
+            '${_csvCell(record.className ?? record.user?.department ?? "")},'
+            '${_csvCell(record.user?.email ?? "")}',
           );
         }
       }
 
       // Save file
       final directory = await getApplicationDocumentsDirectory();
-      final fileName = '${_reportType}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final fileName =
+          '${_reportType}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
       final file = File(path.join(directory.path, fileName));
       await file.writeAsString(buffer.toString());
 
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Report saved: $fileName'),
@@ -409,5 +408,15 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
         setState(() => _isGenerating = false);
       }
     }
+  }
+
+  String _csvCell(String value) {
+    final escaped = value.replaceAll('"', '""');
+    final needsQuotes =
+        escaped.contains(',') ||
+        escaped.contains('"') ||
+        escaped.contains('\n') ||
+        escaped.contains('\r');
+    return needsQuotes ? '"$escaped"' : escaped;
   }
 }

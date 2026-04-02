@@ -38,16 +38,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
         ],
       ),
       body: Consumer<AttendanceProvider>(
         builder: (context, attendance, child) {
           final stats = attendance.dashboardStats;
-          
+
           return RefreshIndicator(
             onRefresh: () async => _loadData(),
             child: SingleChildScrollView(
@@ -133,9 +130,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               ),
                               const Text(
                                 'Active Users',
-                                style: TextStyle(
-                                  color: AppTheme.textSecondary,
-                                ),
+                                style: TextStyle(color: AppTheme.textSecondary),
                               ),
                             ],
                           ),
@@ -158,9 +153,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               ),
                               const Text(
                                 'Faces Registered',
-                                style: TextStyle(
-                                  color: AppTheme.textSecondary,
-                                ),
+                                style: TextStyle(color: AppTheme.textSecondary),
                               ),
                             ],
                           ),
@@ -237,7 +230,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  
+
                   if (attendance.todayAttendance.isEmpty)
                     Container(
                       width: double.infinity,
@@ -256,9 +249,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           const SizedBox(height: 12),
                           const Text(
                             'No attendance records today',
-                            style: TextStyle(
-                              color: AppTheme.textSecondary,
-                            ),
+                            style: TextStyle(color: AppTheme.textSecondary),
                           ),
                         ],
                       ),
@@ -276,10 +267,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         child: Row(
                           children: [
                             CircleAvatar(
-                              backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+                              backgroundColor: AppTheme.primaryColor.withValues(
+                                alpha: 0.1,
+                              ),
                               child: Text(
-                                record.user?.fullName.isNotEmpty == true
-                                    ? record.user!.fullName[0].toUpperCase()
+                                record.displayName.isNotEmpty
+                                    ? record.displayName[0].toUpperCase()
                                     : '?',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
@@ -293,14 +286,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    record.user?.fullName ?? 'Unknown',
+                                    record.displayName,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
+                                  if (record.className?.trim().isNotEmpty ==
+                                      true)
+                                    Text(
+                                      record.className!.trim(),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade500,
+                                      ),
+                                    ),
                                   Text(
                                     record.checkInTime != null
-                                        ? DateFormat('hh:mm a').format(record.checkInTime!)
+                                        ? DateFormat(
+                                            'hh:mm a',
+                                          ).format(record.checkInTime!)
                                         : 'N/A',
                                     style: TextStyle(
                                       fontSize: 12,
@@ -317,8 +321,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               ),
                               decoration: BoxDecoration(
                                 color: record.status == 'present'
-                                    ? AppTheme.successColor.withValues(alpha: 0.1)
-                                    : AppTheme.warningColor.withValues(alpha: 0.1),
+                                    ? AppTheme.successColor.withValues(
+                                        alpha: 0.1,
+                                      )
+                                    : AppTheme.warningColor.withValues(
+                                        alpha: 0.1,
+                                      ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(

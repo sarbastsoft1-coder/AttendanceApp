@@ -26,6 +26,7 @@ class LeaveRequestProvider with ChangeNotifier {
       final response = await _api.get(
         ApiConfig.leaveRequests,
         queryParameters: {
+          // ignore: use_null_aware_elements
           if (statusFilter != null) 'status_filter': statusFilter,
         },
       );
@@ -55,7 +56,9 @@ class LeaveRequestProvider with ChangeNotifier {
       final response = await _api.post(
         ApiConfig.leaveRequests,
         data: {
+          // ignore: use_null_aware_elements
           if (userId != null) 'user_id': userId,
+          // ignore: use_null_aware_elements
           if (studentId != null) 'student_id': studentId,
           'leave_date': leaveDate.toIso8601String(),
           'reason': reason,

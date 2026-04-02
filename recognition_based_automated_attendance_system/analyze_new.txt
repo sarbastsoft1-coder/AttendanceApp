@@ -1,0 +1,4 @@
+﻿Analyzing recognition_based_automated_attendance_system...      
+
+   info - Don't use 'BuildContext's across async gaps - lib\screens\admin\class_students_screen.dart:79:7 - use_build_context_synchronously
+

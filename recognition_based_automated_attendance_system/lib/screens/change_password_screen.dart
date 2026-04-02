@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/custom_button.dart';
-import '../widgets/custom_textfield.dart';
 
 /// Change Password Screen — allows authenticated users to change their password
 class ChangePasswordScreen extends StatefulWidget {

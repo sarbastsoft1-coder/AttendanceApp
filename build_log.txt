@@ -1,0 +1,37 @@
+﻿Building Windows application...                                 
+flutter : C:\Program 
+Files\Microsoft Visual Stu
+dio\2022\Community\MSBuild
+\Microsoft\VC\v170\Microso
+ft.CppCommon.targets(254,5
+): error MSB8066: Custom 
+build for 'X:\build\window
+s\x64\CMakeFiles\61f190633
+6a6333da7e00aa18412fe15\fl
+utter_windows.dll.rule;X:\
+build\windows\x64\CMakeFil
+es\386361436d0c81e2351e822
+78345c65a\flutter_assemble
+.rule' exited with code 
+255. [X:\build\windows\x64
+\flutter\flutter_assemble.
+vcxproj]
+At line:1 char:94
++ ... 
+ted_attendance_system"; 
+pushd X:\; flutter build 
+windows *>&1 | Out-F ...
++                         
+               
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (C  
+  :\Program File...semb   
+ le.vcxproj]:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+Building Windows application...                                     9.1s
+Build process failed.

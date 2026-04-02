@@ -55,7 +55,7 @@ class AppSettings {
     };
   }
 
-  /// Return settings as a flat Map<String,String> for bulk update API
+  /// Return settings as a flat Map for bulk update API
   Map<String, String> toBulkUpdateMap() {
     return {
       'late_threshold_hour': lateThresholdHour.toString(),
@@ -98,7 +98,6 @@ class AppSettings {
   }
 
   String get lateThresholdDisplay {
-    final h = lateThresholdHour.toString().padLeft(2, '0');
     final m = lateThresholdMinute.toString().padLeft(2, '0');
     final period = lateThresholdHour >= 12 ? 'PM' : 'AM';
     final displayHour = lateThresholdHour > 12

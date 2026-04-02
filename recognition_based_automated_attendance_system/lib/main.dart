@@ -7,6 +7,8 @@ import 'package:window_manager/window_manager.dart';
 import 'config/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/attendance_provider.dart';
+import 'providers/leave_request_provider.dart';
+import 'providers/notification_provider.dart';
 import 'services/storage_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
@@ -16,6 +18,10 @@ import 'screens/home_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/edit_profile_screen.dart';
+import 'screens/change_password_screen.dart';
+import 'screens/leave_request_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/admin/admin_dashboard.dart';
 import 'screens/admin/admin_users_screen.dart';
 import 'screens/admin/admin_reports_screen.dart';
@@ -27,14 +33,14 @@ import 'screens/admin/class_management_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize storage service
   await StorageService().init();
-  
+
   // Windows desktop — configure window
   if (!kIsWeb && Platform.isWindows) {
     await windowManager.ensureInitialized();
-    
+
     WindowOptions windowOptions = const WindowOptions(
       size: Size(1280, 800),
       minimumSize: Size(960, 640),
@@ -44,13 +50,13 @@ void main() async {
       titleBarStyle: TitleBarStyle.hidden,
       title: 'Face Attendance System',
     );
-    
+
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
     });
   }
-  
+
   // Mobile-only: orientation lock and status bar styling
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
     await SystemChrome.setPreferredOrientations([
@@ -66,7 +72,7 @@ void main() async {
       ),
     );
   }
-  
+
   runApp(const MyApp());
 }
 
@@ -80,6 +86,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
         ChangeNotifierProvider(create: (_) => StudentManagementProvider()),
+        ChangeNotifierProvider(create: (_) => LeaveRequestProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: MaterialApp(
         title: 'Face Attendance System',
@@ -97,12 +105,17 @@ class MyApp extends StatelessWidget {
           '/attendance': (context) => const AttendanceScreen(),
           '/history': (context) => const HistoryScreen(),
           '/profile': (context) => const ProfileScreen(),
+          '/edit-profile': (context) => const EditProfileScreen(),
+          '/change-password': (context) => const ChangePasswordScreen(),
+          '/leave-requests': (context) => const LeaveRequestScreen(),
+          '/notifications': (context) => const NotificationsScreen(),
           '/admin': (context) => const AdminDashboard(),
           '/admin/users': (context) => const AdminUsersScreen(),
           '/admin/reports': (context) => const AdminReportsScreen(),
           '/admin/attendance': (context) => const AdminAttendanceScreen(),
           '/room-scanner': (context) => const RoomScannerScreen(),
-          '/batch-registration': (context) => const BatchStudentRegistrationScreen(),
+          '/batch-registration': (context) =>
+              const BatchStudentRegistrationScreen(),
           '/admin/classes': (context) => const ClassManagementScreen(),
         },
       ),

@@ -139,7 +139,9 @@ class AttendanceUpdate(BaseModel):
 class AttendanceResponse(BaseModel):
     """Attendance record response"""
     id: int
-    user_id: int
+    user_id: Optional[int] = None
+    student_id: Optional[int] = None
+    class_id: Optional[int] = None
     date: datetime
     check_in_time: Optional[datetime] = None
     check_out_time: Optional[datetime] = None
@@ -152,6 +154,8 @@ class AttendanceResponse(BaseModel):
 
     # Include user info
     user: Optional[UserResponse] = None
+    student_name: Optional[str] = None
+    class_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -252,9 +256,28 @@ class UserFilter(BaseModel):
 # CLASS AND STUDENT SCHEMAS
 # ========================
 
-class ClassCreate(BaseModel):
-    """Class creation request"""
+class ClassBase(BaseModel):
+    """Shared class fields"""
     name: str = Field(..., min_length=1, max_length=255)
+    subject: Optional[str] = Field(default=None, max_length=255)
+    room: Optional[str] = Field(default=None, max_length=255)
+    start_time: Optional[str] = Field(default=None, max_length=20)
+    end_time: Optional[str] = Field(default=None, max_length=20)
+    meeting_days: Optional[List[str]] = None
+
+
+class ClassCreate(ClassBase):
+    """Class creation request"""
+
+
+class ClassUpdate(BaseModel):
+    """Class update request"""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    subject: Optional[str] = Field(default=None, max_length=255)
+    room: Optional[str] = Field(default=None, max_length=255)
+    start_time: Optional[str] = Field(default=None, max_length=20)
+    end_time: Optional[str] = Field(default=None, max_length=20)
+    meeting_days: Optional[List[str]] = None
 
 
 class ClassResponse(BaseModel):
@@ -262,6 +285,11 @@ class ClassResponse(BaseModel):
     id: int
     name: str
     teacher_id: int
+    subject: Optional[str] = None
+    room: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    meeting_days: List[str] = []
     created_at: datetime
     student_count: int = 0
 
@@ -274,6 +302,7 @@ class StudentResponse(BaseModel):
     id: int
     name: str
     class_id: int
+    linked_user_id: Optional[int] = None
     has_registered_face: bool
     created_at: datetime
 

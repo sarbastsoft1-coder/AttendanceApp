@@ -1,0 +1,10 @@
+﻿User IDs with attendance records: [1, 2, 3, 4, 5, 6]
+All users in DB:
+  id=1  email=admin@example.com  role=admin
+  id=2  email=ss@gmail.com  role=teacher
+  id=3  email=test2@example.com  role=teacher
+  id=4  email=test@example.com  role=teacher
+  id=5  email=student1@example.com  role=teacher
+  id=6  email=student2@example.com  role=teacher
+  id=7  email=newtest2@test.com  role=teacher
+  id=8  email=f@gmail.com  role=teacher

@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import '../config/api_config.dart';
 import '../models/attendance_model.dart';
 import '../models/settings_model.dart';
@@ -14,6 +16,7 @@ class AttendanceProvider with ChangeNotifier {
   List<Attendance> _todayAttendance = [];
   List<Attendance> _history = [];
   List<Attendance> _allAttendance = [];
+  List<Attendance> _classAttendance = [];
   List<User> _allUsers = [];
   AttendanceStats? _stats;
   DashboardStats? _dashboardStats;
@@ -32,6 +35,7 @@ class AttendanceProvider with ChangeNotifier {
   List<Attendance> get todayAttendance => _todayAttendance;
   List<Attendance> get history => _history;
   List<Attendance> get allAttendance => _allAttendance;
+  List<Attendance> get classAttendance => _classAttendance;
   List<User> get allUsers => _allUsers;
   AttendanceStats? get stats => _stats;
   DashboardStats? get dashboardStats => _dashboardStats;
@@ -311,10 +315,7 @@ class AttendanceProvider with ChangeNotifier {
   }) async {
     _setLoading(true);
     try {
-      final queryParams = <String, dynamic>{
-        'page': page,
-        'page_size': 50,
-      };
+      final queryParams = <String, dynamic>{'page': page, 'page_size': 50};
       if (startDate != null) {
         queryParams['start_date'] = startDate.toIso8601String().split('T')[0];
       }
@@ -341,8 +342,11 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   /// Update attendance status manually (admin only)
-  Future<bool> updateAttendanceStatus(int attendanceId, String status,
-      {String? notes}) async {
+  Future<bool> updateAttendanceStatus(
+    int attendanceId,
+    String status, {
+    String? notes,
+  }) async {
     _setLoading(true);
     try {
       final Map<String, dynamic> body = {'status': status};
@@ -375,17 +379,51 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   /// Fetch attendance for a specific class
-  Future<void> fetchClassAttendance(int classId) async {
+  Future<void> fetchClassAttendance(int classId, {DateTime? date}) async {
     _setLoading(true);
     try {
-      final response = await _api.get(ApiConfig.classAttendance(classId));
-      _history = (response.data as List)
+      final queryParams = <String, dynamic>{};
+      if (date != null) {
+        final formatted = date.toIso8601String().split('T')[0];
+        queryParams['start_date'] = formatted;
+        queryParams['end_date'] = formatted;
+      }
+      final response = await _api.get(
+        ApiConfig.classAttendance(classId),
+        queryParameters: queryParams,
+      );
+      _classAttendance = (response.data as List)
           .map((json) => Attendance.fromJson(json))
           .toList();
       _setLoading(false);
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
       _setLoading(false);
+    }
+  }
+
+  Future<bool> submitRollCall({
+    required int classId,
+    required DateTime attendanceDate,
+    required List<Map<String, dynamic>> entries,
+  }) async {
+    _setLoading(true);
+    _error = null;
+    try {
+      await _api.post(
+        ApiConfig.rollCall,
+        data: {
+          'class_id': classId,
+          'attendance_date': attendanceDate.toIso8601String(),
+          'entries': entries,
+        },
+      );
+      await fetchClassAttendance(classId, date: attendanceDate);
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      _setLoading(false);
+      return false;
     }
   }
 
@@ -400,18 +438,29 @@ class AttendanceProvider with ChangeNotifier {
     _error = null;
     try {
       final queryParams = <String, dynamic>{};
-      if (start != null) queryParams['start_date'] = start.toIso8601String().split('T')[0];
-      if (end != null) queryParams['end_date'] = end.toIso8601String().split('T')[0];
+      if (start != null) {
+        queryParams['start_date'] = start.toIso8601String().split('T')[0];
+      }
+      if (end != null) {
+        queryParams['end_date'] = end.toIso8601String().split('T')[0];
+      }
       if (classId != null) queryParams['class_id'] = classId;
       if (userId != null) queryParams['user_id'] = userId;
 
-      final response = await _api.get(
+      final response = await _api.getPlainText(
         ApiConfig.exportAttendance,
         queryParameters: queryParams,
       );
 
+      final downloads = !kIsWeb ? await getDownloadsDirectory() : null;
+      final directory = downloads ?? await getApplicationDocumentsDirectory();
+      final fileName =
+          'attendance_export_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final file = File(path.join(directory.path, fileName));
+      await file.writeAsString(response.data ?? '');
+
       _setLoading(false);
-      return response.data?.toString();
+      return file.path;
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
       _setLoading(false);
@@ -421,7 +470,9 @@ class AttendanceProvider with ChangeNotifier {
 
   /// Manual attendance entry (teacher/admin)
   Future<Attendance?> manualAttendance({
-    required int userId,
+    int? userId,
+    int? studentId,
+    int? classId,
     required String status,
     DateTime? attendanceDate,
     String? notes,
@@ -429,16 +480,24 @@ class AttendanceProvider with ChangeNotifier {
     _setLoading(true);
     _error = null;
     try {
-      final response = await _api.post(
-        ApiConfig.manualAttendance,
-        data: {
-          'user_id': userId,
-          'status': status,
-          if (attendanceDate != null)
-            'attendance_date': attendanceDate.toIso8601String(),
-          if (notes != null && notes.isNotEmpty) 'notes': notes,
-        },
-      );
+      final data = <String, dynamic>{'status': status};
+      if (userId != null) {
+        data['user_id'] = userId;
+      }
+      if (studentId != null) {
+        data['student_id'] = studentId;
+      }
+      if (classId != null) {
+        data['class_id'] = classId;
+      }
+      if (attendanceDate != null) {
+        data['attendance_date'] = attendanceDate.toIso8601String();
+      }
+      if (notes != null && notes.isNotEmpty) {
+        data['notes'] = notes;
+      }
+
+      final response = await _api.post(ApiConfig.manualAttendance, data: data);
       final attendance = Attendance.fromJson(response.data);
       _setLoading(false);
       return attendance;

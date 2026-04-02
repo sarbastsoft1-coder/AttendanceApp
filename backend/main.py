@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import (
-    get_db, User, Attendance, Class, Student, init_db,
+    get_db, SessionLocal, User, Attendance, Class, Student, init_db,
     PasswordResetToken, LeaveRequest, Setting, AuditLog, QRSession, Notification
 )
 from models import (
@@ -29,7 +29,7 @@ from models import (
     AttendanceCreate, AttendanceResponse, AttendanceStats, AttendanceReport, AttendanceUpdate,
     AttendanceManualCreate, PaginatedAttendance,
     FaceRegistrationResponse, FaceRecognitionResult, DashboardStats, RoomScanResponse,
-    ClassCreate, ClassResponse, StudentResponse, StudentRegistrationResponse,
+    ClassCreate, ClassUpdate, ClassResponse, StudentResponse, StudentRegistrationResponse,
     DetectedObject, ExamProctorResponse,
     ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, PasswordResetTokenResponse,
     LeaveRequestCreate, LeaveRequestReview, LeaveRequestResponse,
@@ -183,6 +183,41 @@ def _student_to_user_response(student: Student, class_name: Optional[str]) -> Us
     )
 
 
+def _split_meeting_days(raw_days: Optional[str]) -> List[str]:
+    if not raw_days:
+        return []
+    return [day for day in raw_days.split(",") if day]
+
+
+def _normalize_meeting_days(days: Optional[List[str]]) -> Optional[str]:
+    if not days:
+        return None
+    normalized = []
+    seen = set()
+    for day in days:
+        value = (day or "").strip().title()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return ",".join(normalized) if normalized else None
+
+
+def _class_to_response(class_obj: Class, db: Session) -> ClassResponse:
+    return ClassResponse(
+        id=class_obj.id,
+        name=class_obj.name,
+        teacher_id=class_obj.teacher_id,
+        subject=class_obj.subject,
+        room=class_obj.room,
+        start_time=class_obj.start_time,
+        end_time=class_obj.end_time,
+        meeting_days=_split_meeting_days(class_obj.meeting_days),
+        created_at=class_obj.created_at,
+        student_count=db.query(Student).filter(Student.class_id == class_obj.id).count(),
+    )
+
+
 def _user_to_response(user: User) -> UserResponse:
     """Safely map User model to UserResponse."""
     return UserResponse(
@@ -197,6 +232,71 @@ def _user_to_response(user: User) -> UserResponse:
         is_verified=user.is_verified,
         created_at=user.created_at or datetime.utcnow()
     )
+
+
+def _managed_student_email(student_id: int) -> str:
+    return f"managed_student_{student_id}@local.attendance"
+
+
+def _ensure_student_linked_user(db: Session, student: Student, class_obj: Optional[Class] = None) -> User:
+    """Ensure each managed class-student has a stable backing user id."""
+    managed_user = None
+    if student.linked_user_id:
+        managed_user = db.query(User).filter(User.id == student.linked_user_id).first()
+
+    if managed_user is None:
+        managed_user = db.query(User).filter(User.email == _managed_student_email(student.id)).first()
+
+    if class_obj is None:
+        class_obj = db.query(Class).filter(Class.id == student.class_id).first()
+
+    if managed_user is None:
+        managed_user = User(
+            email=_managed_student_email(student.id),
+            full_name=student.name,
+            hashed_password=get_password_hash(secrets.token_urlsafe(24)),
+            phone=None,
+            department=class_obj.name if class_obj else None,
+            role="managed_student",
+            has_registered_face=False,
+            is_active=True,
+            is_verified=True,
+            verification_token=None,
+        )
+        db.add(managed_user)
+        db.flush()
+
+    managed_user.full_name = student.name
+    managed_user.department = class_obj.name if class_obj else managed_user.department
+    managed_user.role = "managed_student"
+    managed_user.is_active = True
+    managed_user.is_verified = True
+    student.linked_user_id = managed_user.id
+    db.flush()
+    return managed_user
+
+
+def _attendance_to_response(db: Session, attendance: Attendance) -> AttendanceResponse:
+    student = None
+    class_obj = None
+    if attendance.student_id is not None:
+        student = db.query(Student).filter(Student.id == attendance.student_id).first()
+    if attendance.class_id is not None:
+        class_obj = db.query(Class).filter(Class.id == attendance.class_id).first()
+    elif student is not None:
+        class_obj = db.query(Class).filter(Class.id == student.class_id).first()
+
+    response = AttendanceResponse.model_validate(attendance)
+    response.user = None
+    if attendance.user and attendance.user.role != "managed_student":
+        response.user = UserResponse.model_validate(attendance.user)
+    response.student_name = student.name if student else (
+        attendance.user.full_name if attendance.user and attendance.user.role == "managed_student" else None
+    )
+    response.class_name = class_obj.name if class_obj else (
+        attendance.user.department if attendance.user and attendance.user.role == "managed_student" else None
+    )
+    return response
 
 
 def _leave_to_response(leave: LeaveRequest) -> LeaveRequestResponse:
@@ -228,6 +328,17 @@ def _leave_to_response(leave: LeaveRequest) -> LeaveRequestResponse:
 async def startup():
     """Initialize database and models on startup"""
     init_db()
+    db = SessionLocal()
+    try:
+        students = db.query(Student).all()
+        for student in students:
+            _ensure_student_linked_user(db, student)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Warning: student link backfill failed: {e}")
+    finally:
+        db.close()
 
 
 # ========================
@@ -426,7 +537,7 @@ async def get_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user)
 ):
-    query = db.query(User)
+    query = db.query(User).filter(User.role != "managed_student")
     if role:
         query = query.filter(User.role == role)
     if department:
@@ -594,7 +705,10 @@ async def mark_attendance(
     if unknown_encoding is None:
         raise HTTPException(status_code=400, detail="Could not encode face")
 
-    users_with_faces = db.query(User).filter(User.has_registered_face == True).all()
+    users_with_faces = db.query(User).filter(
+        User.has_registered_face == True,
+        User.role != "managed_student"
+    ).all()
     if not users_with_faces:
         raise HTTPException(status_code=400, detail="No registered faces in the system")
 
@@ -655,10 +769,7 @@ async def mark_attendance(
                            "attendance")
     db.commit()
 
-    user = db.query(User).filter(User.id == user_id).first()
-    response = AttendanceResponse.model_validate(attendance)
-    response.user = UserResponse.model_validate(user)
-    return response
+    return _attendance_to_response(db, attendance)
 
 
 def _check_attendance_alert(db: Session, user_id: int, settings: AppSettings):
@@ -694,7 +805,10 @@ async def check_out(
     if unknown_encoding is None:
         raise HTTPException(status_code=400, detail="Could not encode face")
 
-    users_with_faces = db.query(User).filter(User.has_registered_face == True).all()
+    users_with_faces = db.query(User).filter(
+        User.has_registered_face == True,
+        User.role != "managed_student"
+    ).all()
     known_encodings = [(u.id, u.full_name, json.loads(u.face_encoding))
                        for u in users_with_faces if u.face_encoding]
 
@@ -736,18 +850,39 @@ async def manual_attendance(
     if not settings.allow_manual_entry:
         raise HTTPException(status_code=400, detail="Manual attendance entry is currently disabled")
 
-    if data.user_id is None:
-        raise HTTPException(status_code=400, detail="user_id is required for manual attendance")
+    if data.user_id is None and data.student_id is None:
+        raise HTTPException(status_code=400, detail="user_id or student_id is required for manual attendance")
 
-    user = db.query(User).filter(User.id == data.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = None
+    student = None
+    class_obj = None
+    resolved_user_id = data.user_id
+    resolved_student_id = None
+    resolved_class_id = data.class_id
+
+    if data.student_id is not None:
+        student = db.query(Student).filter(Student.id == data.student_id).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+        class_obj = db.query(Class).filter(Class.id == student.class_id).first()
+        if not class_obj:
+            raise HTTPException(status_code=404, detail="Class not found")
+        if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized for this class")
+        managed_user = _ensure_student_linked_user(db, student, class_obj)
+        resolved_user_id = managed_user.id
+        resolved_student_id = student.id
+        resolved_class_id = student.class_id
+    else:
+        user = db.query(User).filter(User.id == data.user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
     attendance_date = data.attendance_date or datetime.now()
     target_date = attendance_date.date()
 
     existing = db.query(Attendance).filter(
-        Attendance.user_id == data.user_id,
+        Attendance.user_id == resolved_user_id,
         func.date(Attendance.date) == target_date
     ).first()
 
@@ -760,16 +895,18 @@ async def manual_attendance(
             existing.check_in_time = data.check_in_time
         if data.check_out_time:
             existing.check_out_time = data.check_out_time
+        existing.student_id = resolved_student_id
+        existing.class_id = resolved_class_id
         db.commit()
         db.refresh(existing)
-        response = AttendanceResponse.model_validate(existing)
-        response.user = UserResponse.model_validate(existing.user)
-        return response
+        return _attendance_to_response(db, existing)
 
     attendance = Attendance(
-        user_id=data.user_id,
+        user_id=resolved_user_id,
+        student_id=resolved_student_id,
+        class_id=resolved_class_id,
         date=attendance_date,
-        check_in_time=data.check_in_time or attendance_date,
+        check_in_time=(data.check_in_time or attendance_date) if data.status != "absent" else None,
         check_out_time=data.check_out_time,
         method="manual",
         status=data.status,
@@ -780,13 +917,11 @@ async def manual_attendance(
     db.refresh(attendance)
 
     _write_audit(db, current_user.id, "manual_attendance", "Attendance", attendance.id,
-                 f"Manual entry for user {data.user_id} on {target_date}: {data.status}",
+                 f"Manual entry on {target_date}: {data.status}",
                  request.client.host if request.client else None)
     db.commit()
 
-    response = AttendanceResponse.model_validate(attendance)
-    response.user = UserResponse.model_validate(user)
-    return response
+    return _attendance_to_response(db, attendance)
 
 
 @app.post("/api/attendance/roll-call", response_model=RollCallResponse, tags=["Attendance"])
@@ -817,32 +952,57 @@ async def submit_roll_call(
             skipped += 1
             continue
 
-        if entry.user_id:
+        resolved_user_id = None
+        resolved_student_id = None
+        resolved_class_id = data.class_id
+
+        if entry.student_id is not None:
+            student = db.query(Student).filter(
+                Student.id == entry.student_id,
+                Student.class_id == data.class_id
+            ).first()
+            if not student:
+                skipped += 1
+                continue
+            managed_user = _ensure_student_linked_user(db, student, class_obj)
+            resolved_user_id = managed_user.id
+            resolved_student_id = student.id
+            resolved_class_id = student.class_id
+        elif entry.user_id is not None:
             user = db.query(User).filter(User.id == entry.user_id).first()
             if not user:
                 skipped += 1
                 continue
+            resolved_user_id = entry.user_id
 
-            existing = db.query(Attendance).filter(
-                Attendance.user_id == entry.user_id,
-                func.date(Attendance.date) == target_date
-            ).first()
+        if resolved_user_id is None:
+            skipped += 1
+            continue
 
-            if existing:
-                existing.status = entry.status
-                if entry.notes:
-                    existing.notes = entry.notes
-            else:
-                att = Attendance(
-                    user_id=entry.user_id,
-                    date=attendance_date,
-                    check_in_time=attendance_date if entry.status != "absent" else None,
-                    method="manual",
-                    status=entry.status,
-                    notes=entry.notes,
-                )
-                db.add(att)
-            marked += 1
+        existing = db.query(Attendance).filter(
+            Attendance.user_id == resolved_user_id,
+            func.date(Attendance.date) == target_date
+        ).first()
+
+        if existing:
+            existing.status = entry.status
+            existing.notes = entry.notes
+            existing.student_id = resolved_student_id
+            existing.class_id = resolved_class_id
+            existing.check_in_time = attendance_date if entry.status != "absent" else None
+        else:
+            att = Attendance(
+                user_id=resolved_user_id,
+                student_id=resolved_student_id,
+                class_id=resolved_class_id,
+                date=attendance_date,
+                check_in_time=attendance_date if entry.status != "absent" else None,
+                method="manual",
+                status=entry.status,
+                notes=entry.notes,
+            )
+            db.add(att)
+        marked += 1
 
     db.commit()
 
@@ -869,12 +1029,7 @@ async def get_today_attendance(
         query = query.filter(Attendance.user_id == current_user.id)
 
     records = query.order_by(Attendance.check_in_time.desc()).all()
-    responses = []
-    for record in records:
-        response = AttendanceResponse.model_validate(record)
-        response.user = UserResponse.model_validate(record.user)
-        responses.append(response)
-    return responses
+    return [_attendance_to_response(db, record) for record in records]
 
 
 @app.get("/api/attendance/history", response_model=PaginatedAttendance, tags=["Attendance"])
@@ -909,11 +1064,7 @@ async def get_attendance_history(
 
     records = query.order_by(Attendance.date.desc()).offset(offset).limit(page_size).all()
 
-    responses = []
-    for record in records:
-        response = AttendanceResponse.model_validate(record)
-        response.user = UserResponse.model_validate(record.user)
-        responses.append(response)
+    responses = [_attendance_to_response(db, record) for record in records]
 
     return PaginatedAttendance(
         items=responses,
@@ -991,9 +1142,7 @@ async def update_attendance_status(
                  request.client.host if request.client else None)
     db.commit()
 
-    response = AttendanceResponse.model_validate(attendance)
-    response.user = UserResponse.model_validate(attendance.user)
-    return response
+    return _attendance_to_response(db, attendance)
 
 
 @app.get("/api/attendance/export", tags=["Attendance"])
@@ -1015,27 +1164,24 @@ async def export_attendance_csv(
     if user_id:
         query = query.filter(Attendance.user_id == user_id)
     if class_id:
-        # Get students in class, try to match by name to users
-        students = db.query(Student).filter(Student.class_id == class_id).all()
-        student_names = [s.name for s in students]
-        matched_users = db.query(User).filter(User.full_name.in_(student_names)).all()
-        matched_ids = [u.id for u in matched_users]
-        if matched_ids:
-            query = query.filter(Attendance.user_id.in_(matched_ids))
+        query = query.filter(Attendance.class_id == class_id)
 
     records = query.order_by(Attendance.date.desc()).all()
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "Student Name", "Email", "Date", "Check-In Time",
+    writer.writerow(["ID", "Student Name", "Class", "Email", "Date", "Check-In Time",
                      "Check-Out Time", "Status", "Method", "Confidence", "Notes"])
 
     for r in records:
-        u = r.user
+        response = _attendance_to_response(db, r)
+        display_name = response.student_name or (response.user.full_name if response.user else "Unknown")
+        display_email = response.user.email if response.user else ""
         writer.writerow([
             r.id,
-            u.full_name if u else "Unknown",
-            u.email if u else "",
+            display_name,
+            response.class_name or "",
+            display_email,
             r.date.strftime("%Y-%m-%d"),
             r.check_in_time.strftime("%H:%M:%S") if r.check_in_time else "N/A",
             r.check_out_time.strftime("%H:%M:%S") if r.check_out_time else "N/A",
@@ -1125,6 +1271,25 @@ async def room_scan(
         present_students = [s for s in expected_students if s.id in present_ids]
         absent_students = [s for s in expected_students if s.id not in present_ids]
 
+        today = date.today()
+        for student in present_students:
+            managed_user = _ensure_student_linked_user(db, student, class_obj)
+            existing = db.query(Attendance).filter(
+                Attendance.user_id == managed_user.id,
+                func.date(Attendance.date) == today
+            ).first()
+            if not existing:
+                db.add(Attendance(
+                    user_id=managed_user.id,
+                    student_id=student.id,
+                    class_id=class_obj.id,
+                    date=datetime.now(),
+                    check_in_time=datetime.now(),
+                    method="room_scan",
+                    status="present"
+                ))
+        db.commit()
+
         faces_detected = len(face_locations)
         if len(present_students) == 0 and faces_detected > 0:
             msg = (
@@ -1164,7 +1329,11 @@ async def room_scan(
         face_recognition.face_encodings, rgb_img, face_locations
     )
 
-    query = db.query(User).filter(User.has_registered_face == True, User.is_active == True)
+    query = db.query(User).filter(
+        User.has_registered_face == True,
+        User.is_active == True,
+        User.role != "managed_student"
+    )
     if department:
         query = query.filter(User.department == department)
     expected_students = query.all()
@@ -1352,9 +1521,7 @@ async def scan_qr_attendance(
     db.commit()
     db.refresh(attendance)
 
-    response = AttendanceResponse.model_validate(attendance)
-    response.user = UserResponse.model_validate(current_user)
-    return response
+    return _attendance_to_response(db, attendance)
 
 
 @app.delete("/api/qr/session/{session_id}", tags=["QR Attendance"])
@@ -1386,11 +1553,16 @@ async def get_dashboard_stats(
     current_user: User = Depends(get_current_admin_user)
 ):
     today = date.today()
-    total_users = db.query(User).count()
-    active_users = db.query(User).filter(User.is_active == True).count()
-    registered_faces = db.query(User).filter(User.has_registered_face == True).count()
+    regular_users = db.query(User).filter(User.role != "managed_student")
+    total_users = regular_users.count()
+    active_users = regular_users.filter(User.is_active == True).count()
+    registered_faces = regular_users.filter(User.has_registered_face == True).count()
 
+    managed_user_ids = {
+        user_id for (user_id,) in db.query(User.id).filter(User.role == "managed_student").all()
+    }
     today_attendance = db.query(Attendance).filter(func.date(Attendance.date) == today).all()
+    today_attendance = [a for a in today_attendance if a.user_id not in managed_user_ids]
     present_today = len([a for a in today_attendance if a.status == "present"])
     late_today = len([a for a in today_attendance if a.status == "late"])
     absent_today = max(0, active_users - (present_today + late_today))
@@ -1426,17 +1598,21 @@ async def generate_report(
         func.date(Attendance.date) <= end_date
     )
     if department:
-        user_ids = [u.id for u in db.query(User).filter(User.department == department).all()]
+        user_ids = [
+            u.id for u in db.query(User).filter(
+                User.department == department,
+                User.role != "managed_student"
+            ).all()
+        ]
         query = query.filter(Attendance.user_id.in_(user_ids))
 
     records = query.order_by(Attendance.date.desc()).all()
-    responses = []
-    for record in records:
-        resp = AttendanceResponse.model_validate(record)
-        resp.user = UserResponse.model_validate(record.user)
-        responses.append(resp)
+    responses = [_attendance_to_response(db, record) for record in records]
 
-    total_users = db.query(User).filter(User.is_active == True).count()
+    total_users = db.query(User).filter(
+        User.is_active == True,
+        User.role != "managed_student"
+    ).count()
     return AttendanceReport(
         start_date=datetime.combine(start_date, datetime.min.time()),
         end_date=datetime.combine(end_date, datetime.max.time()),
@@ -1456,9 +1632,15 @@ async def get_analytics(
 ):
     """Get analytics data for charts (last N days)"""
     start_dt = datetime.now() - timedelta(days=days)
+    managed_user_ids = {
+        user_id for (user_id,) in db.query(User.id).filter(User.role == "managed_student").all()
+    }
 
     # Daily trend
-    daily_records = db.query(Attendance).filter(Attendance.date >= start_dt).all()
+    daily_records = [
+        r for r in db.query(Attendance).filter(Attendance.date >= start_dt).all()
+        if r.user_id not in managed_user_ids
+    ]
     daily_map: dict = {}
     for r in daily_records:
         d = r.date.strftime("%Y-%m-%d")
@@ -1471,11 +1653,16 @@ async def get_analytics(
 
     # Department breakdown
     departments = db.query(User.department).filter(
-        User.department != None, User.is_active == True
+        User.department != None, User.is_active == True, User.role != "managed_student"
     ).distinct().all()
     dept_breakdown = []
     for (dept,) in departments:
-        user_ids = [u.id for u in db.query(User).filter(User.department == dept).all()]
+        user_ids = [
+            u.id for u in db.query(User).filter(
+                User.department == dept,
+                User.role != "managed_student"
+            ).all()
+        ]
         dept_records = db.query(Attendance).filter(
             Attendance.user_id.in_(user_ids),
             Attendance.date >= start_dt
@@ -1857,7 +2044,15 @@ async def create_class(
     if current_user.role not in ("admin", "teacher"):
         raise HTTPException(status_code=403, detail="Only teachers and admins can create classes")
 
-    new_class = Class(name=class_data.name, teacher_id=current_user.id)
+    new_class = Class(
+        name=class_data.name,
+        teacher_id=current_user.id,
+        subject=class_data.subject,
+        room=class_data.room,
+        start_time=class_data.start_time,
+        end_time=class_data.end_time,
+        meeting_days=_normalize_meeting_days(class_data.meeting_days),
+    )
     db.add(new_class)
     db.commit()
     db.refresh(new_class)
@@ -1867,9 +2062,7 @@ async def create_class(
                  request.client.host if request.client else None)
     db.commit()
 
-    return ClassResponse(id=new_class.id, name=new_class.name,
-                         teacher_id=new_class.teacher_id,
-                         created_at=new_class.created_at, student_count=0)
+    return _class_to_response(new_class, db)
 
 
 @app.get("/api/classes", response_model=List[ClassResponse], tags=["Classes"])
@@ -1882,13 +2075,55 @@ async def get_classes(
         query = query.filter(Class.teacher_id == current_user.id)
 
     classes = query.order_by(Class.created_at.desc()).all()
-    return [
-        ClassResponse(
-            id=c.id, name=c.name, teacher_id=c.teacher_id,
-            created_at=c.created_at,
-            student_count=db.query(Student).filter(Student.class_id == c.id).count()
-        ) for c in classes
-    ]
+    return [_class_to_response(c, db) for c in classes]
+
+
+@app.get("/api/classes/{class_id}", response_model=ClassResponse, tags=["Classes"])
+async def get_class(
+    class_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    class_obj = db.query(Class).filter(Class.id == class_id).first()
+    if not class_obj:
+        raise HTTPException(status_code=404, detail="Class not found")
+    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return _class_to_response(class_obj, db)
+
+
+@app.put("/api/classes/{class_id}", response_model=ClassResponse, tags=["Classes"])
+async def update_class(
+    class_id: int,
+    class_data: ClassUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    class_obj = db.query(Class).filter(Class.id == class_id).first()
+    if not class_obj:
+        raise HTTPException(status_code=404, detail="Class not found")
+    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    update_data = class_data.model_dump(exclude_unset=True)
+    if "meeting_days" in update_data:
+        class_obj.meeting_days = _normalize_meeting_days(update_data["meeting_days"])
+        update_data.pop("meeting_days")
+
+    for field, value in update_data.items():
+        setattr(class_obj, field, value)
+
+    db.flush()
+    for student in db.query(Student).filter(Student.class_id == class_id).all():
+        _ensure_student_linked_user(db, student, class_obj)
+
+    _write_audit(db, current_user.id, "update_class", "Class", class_id,
+                 f"Updated class fields: {list(class_data.model_dump(exclude_unset=True).keys())}",
+                 request.client.host if request.client else None)
+    db.commit()
+    db.refresh(class_obj)
+    return _class_to_response(class_obj, db)
 
 
 @app.get("/api/classes/{class_id}/students", response_model=List[StudentResponse], tags=["Classes"])
@@ -1915,30 +2150,21 @@ async def get_class_attendance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get attendance records for users whose names match students in a class"""
+    """Get attendance records for a class using stable student/class linkage"""
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
     if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    student_names = [s.name for s in class_obj.students]
-    relevant_users = db.query(User).filter(User.full_name.in_(student_names)).all()
-    user_ids = [u.id for u in relevant_users]
-
-    query = db.query(Attendance).filter(Attendance.user_id.in_(user_ids))
+    query = db.query(Attendance).filter(Attendance.class_id == class_id)
     if start_date:
         query = query.filter(func.date(Attendance.date) >= start_date)
     if end_date:
         query = query.filter(func.date(Attendance.date) <= end_date)
 
     records = query.order_by(Attendance.date.desc()).all()
-    responses = []
-    for record in records:
-        resp = AttendanceResponse.model_validate(record)
-        resp.user = UserResponse.model_validate(record.user)
-        responses.append(resp)
-    return responses
+    return [_attendance_to_response(db, record) for record in records]
 
 
 @app.delete("/api/classes/{class_id}", tags=["Classes"])
@@ -1955,6 +2181,12 @@ async def delete_class(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     name = class_obj.name
+    students = db.query(Student).filter(Student.class_id == class_id).all()
+    for student in students:
+        if student.linked_user_id:
+            linked_user = db.query(User).filter(User.id == student.linked_user_id).first()
+            if linked_user:
+                linked_user.is_active = False
     db.query(Student).filter(Student.class_id == class_id).delete()
     db.query(QRSession).filter(QRSession.class_id == class_id).delete()
     db.delete(class_obj)
@@ -1986,12 +2218,47 @@ async def delete_student(
         raise HTTPException(status_code=404, detail="Student not found")
 
     name = student.name
+    if student.linked_user_id:
+        linked_user = db.query(User).filter(User.id == student.linked_user_id).first()
+        if linked_user:
+            linked_user.is_active = False
     db.delete(student)
     _write_audit(db, current_user.id, "delete_student", "Student", student_id,
                  f"Deleted student: {name} from class {class_obj.name}",
                  request.client.host if request.client else None)
     db.commit()
     return {"message": "Student deleted successfully"}
+
+
+@app.put("/api/classes/{class_id}/students/{student_id}", response_model=StudentResponse, tags=["Classes"])
+async def update_student(
+    class_id: int,
+    student_id: int,
+    request: Request,
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    class_obj = db.query(Class).filter(Class.id == class_id).first()
+    if not class_obj:
+        raise HTTPException(status_code=404, detail="Class not found")
+    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    student = db.query(Student).filter(
+        Student.id == student_id, Student.class_id == class_id
+    ).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    student.name = name.strip()
+    _ensure_student_linked_user(db, student, class_obj)
+    _write_audit(db, current_user.id, "update_student", "Student", student_id,
+                 f"Updated student name to {student.name}",
+                 request.client.host if request.client else None)
+    db.commit()
+    db.refresh(student)
+    return StudentResponse.model_validate(student)
 
 
 @app.post("/api/students/register", response_model=StudentRegistrationResponse, tags=["Students"])
@@ -2054,6 +2321,7 @@ async def register_student(
 
     face_path = face_service.save_face_image(image_bytes_list[0], f"student_{new_student.id}")
     new_student.face_image_path = face_path
+    _ensure_student_linked_user(db, new_student, class_obj)
     db.commit()
 
     return StudentRegistrationResponse(
@@ -2113,7 +2381,10 @@ async def bulk_import_students(
             error_count += 1
             continue
 
-        db.add(Student(name=name, class_id=class_id, has_registered_face=False))
+        new_student = Student(name=name, class_id=class_id, has_registered_face=False)
+        db.add(new_student)
+        db.flush()
+        _ensure_student_linked_user(db, new_student, class_obj)
         success_count += 1
 
     db.commit()

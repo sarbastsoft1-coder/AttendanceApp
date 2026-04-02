@@ -4,7 +4,10 @@ Database configuration with PostgreSQL and SQLAlchemy models
 import os
 from datetime import datetime
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Float, ForeignKey, Text, LargeBinary
+from sqlalchemy import (
+    create_engine, Column, Integer, String, Boolean, DateTime, Float,
+    ForeignKey, Text, LargeBinary, inspect, text
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
@@ -70,6 +73,8 @@ class Attendance(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    student_id = Column(Integer, nullable=True, index=True)
+    class_id = Column(Integer, nullable=True, index=True)
 
     # Date and time
     date = Column(DateTime, default=datetime.utcnow, index=True)
@@ -105,6 +110,11 @@ class Class(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    subject = Column(String(255), nullable=True)
+    room = Column(String(255), nullable=True)
+    start_time = Column(String(20), nullable=True)
+    end_time = Column(String(20), nullable=True)
+    meeting_days = Column(String(100), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -122,6 +132,7 @@ class Student(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     class_id = Column(Integer, ForeignKey("classes.id"), nullable=False)
+    linked_user_id = Column(Integer, nullable=True, index=True)
 
     # Face recognition data
     face_encoding = Column(Text, nullable=True)  # JSON encoded face encoding
@@ -291,6 +302,7 @@ def get_db():
 def init_db():
     """Initialize database tables and seed default settings"""
     Base.metadata.create_all(bind=engine)
+    _ensure_schema_updates()
     print("Database tables created successfully.")
 
     # Seed default settings if they don't exist
@@ -319,6 +331,39 @@ def init_db():
         db.rollback()
     finally:
         db.close()
+
+
+def _ensure_schema_updates():
+    """Add newer columns for existing databases without full migrations."""
+    inspector = inspect(engine)
+
+    desired_columns = {
+        "attendance": {
+            "student_id": "INTEGER",
+            "class_id": "INTEGER",
+        },
+        "students": {
+            "linked_user_id": "INTEGER",
+        },
+        "classes": {
+            "subject": "VARCHAR(255)",
+            "room": "VARCHAR(255)",
+            "start_time": "VARCHAR(20)",
+            "end_time": "VARCHAR(20)",
+            "meeting_days": "VARCHAR(100)",
+        },
+    }
+
+    with engine.begin() as connection:
+        for table_name, columns in desired_columns.items():
+            existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
+            for column_name, column_type in columns.items():
+                if column_name in existing_columns:
+                    continue
+                connection.execute(
+                    text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+                )
+                print(f"Added column {table_name}.{column_name}")
 
 
 if __name__ == "__main__":

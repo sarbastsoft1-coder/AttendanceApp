@@ -18,7 +18,7 @@ class LeaveRequestScreen extends StatefulWidget {
 class _LeaveRequestScreenState extends State<LeaveRequestScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _statusFilter = 'all';
+  final String _statusFilter = 'all';
 
   @override
   void initState() {
@@ -57,7 +57,7 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen>
             leaveDate: date,
             reason: reason,
           );
-          if (!mounted) return;
+          if (!context.mounted) return;
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

@@ -126,7 +126,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (success) {
       final attendance = attendanceProvider.lastMarkedAttendance;
       _showSuccessDialog(
-        attendance?.user?.fullName ?? 'User',
+        attendance?.displayName ?? 'User',
         attendance?.confidence ?? 0,
         attendance?.status ?? 'present',
       );

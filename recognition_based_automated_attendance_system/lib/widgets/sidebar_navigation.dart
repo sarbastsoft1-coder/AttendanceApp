@@ -33,13 +33,16 @@ class _SidebarNavigationState extends State<SidebarNavigation>
       duration: AppTheme.animNormal,
       vsync: this,
     );
-    _widthAnimation = Tween<double>(
-      begin: AppTheme.sidebarExpandedWidth,
-      end: AppTheme.sidebarCollapsedWidth,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeInOutCubic,
-    ));
+    _widthAnimation =
+        Tween<double>(
+          begin: AppTheme.sidebarExpandedWidth,
+          end: AppTheme.sidebarCollapsedWidth,
+        ).animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: Curves.easeInOutCubic,
+          ),
+        );
   }
 
   @override
@@ -69,10 +72,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
           decoration: BoxDecoration(
             color: AppTheme.bgSidebar,
             border: Border(
-              right: BorderSide(
-                color: AppTheme.glassBorder,
-                width: 0.5,
-              ),
+              right: BorderSide(color: AppTheme.glassBorder, width: 0.5),
             ),
           ),
           child: Column(
@@ -130,6 +130,20 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(4),
                       ),
+                      _SidebarItem(
+                        icon: Icons.notifications_outlined,
+                        label: 'Notifications',
+                        isSelected: widget.currentIndex == 8,
+                        isExpanded: _isExpanded,
+                        onTap: () => widget.onItemSelected(8),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.event_note_rounded,
+                        label: 'Leave Requests',
+                        isSelected: widget.currentIndex == 9,
+                        isExpanded: _isExpanded,
+                        onTap: () => widget.onItemSelected(9),
+                      ),
                       // Management section (visible to all)
                       const SizedBox(height: 8),
                       Padding(
@@ -141,7 +155,11 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                       ),
                       if (_isExpanded)
                         Padding(
-                          padding: const EdgeInsets.only(left: 20, top: 12, bottom: 4),
+                          padding: const EdgeInsets.only(
+                            left: 20,
+                            top: 12,
+                            bottom: 4,
+                          ),
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
@@ -245,10 +263,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                   ),
                   Text(
                     'Teacher Portal',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
                   ),
                 ],
               ),
@@ -289,10 +304,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                 const SizedBox(width: 10),
                 const Text(
                   'Collapse',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppTheme.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
                 ),
               ],
             ],
@@ -411,8 +423,8 @@ class _SidebarItemState extends State<_SidebarItem> {
     final color = isActive
         ? AppTheme.primaryColor
         : _isHovered
-            ? AppTheme.primaryLight
-            : AppTheme.textSecondary;
+        ? AppTheme.primaryLight
+        : AppTheme.textSecondary;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
@@ -432,8 +444,8 @@ class _SidebarItemState extends State<_SidebarItem> {
               color: isActive
                   ? AppTheme.primaryColor.withValues(alpha: 0.12)
                   : _isHovered
-                      ? AppTheme.glassHighlight
-                      : Colors.transparent,
+                  ? AppTheme.glassHighlight
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
               border: isActive
                   ? Border.all(
@@ -468,10 +480,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                       color: AppTheme.primaryColor,
                       shape: BoxShape.circle,
                       boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primaryGlow,
-                          blurRadius: 6,
-                        ),
+                        BoxShadow(color: AppTheme.primaryGlow, blurRadius: 6),
                       ],
                     ),
                   ),

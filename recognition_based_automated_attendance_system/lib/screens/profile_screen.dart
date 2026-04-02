@@ -30,9 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: _isDesktop
-          ? null
-          : AppBar(title: const Text('Profile')),
+      appBar: _isDesktop ? null : AppBar(title: const Text('Profile')),
       body: content,
     );
   }
@@ -43,7 +41,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final user = auth.user;
         if (user == null) {
           return const Center(
-            child: Text('Not logged in', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text(
+              'Not logged in',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
           );
         }
 
@@ -65,15 +66,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Left Column — Avatar & Info
-        SizedBox(
-          width: 320,
-          child: _buildProfileCard(auth, user),
-        ),
+        SizedBox(width: 320, child: _buildProfileCard(auth, user)),
         const SizedBox(width: 24),
         // Right Column — Actions & Settings
-        Expanded(
-          child: _buildActionsPanel(auth),
-        ),
+        Expanded(child: _buildActionsPanel(auth)),
       ],
     );
   }
@@ -96,32 +92,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           // Avatar
           Container(
-            width: 90,
-            height: 90,
-            decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryGlow,
-                  blurRadius: 20,
-                  offset: const Offset(0, 6),
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryGlow,
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                user.fullName.isNotEmpty
-                    ? user.fullName[0].toUpperCase()
-                    : 'U',
-                style: const TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                child: Center(
+                  child: Text(
+                    user.fullName.isNotEmpty
+                        ? user.fullName[0].toUpperCase()
+                        : 'U',
+                    style: const TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ).animate().fadeIn(delay: 100.ms).scale(begin: const Offset(0.9, 0.9)),
+              )
+              .animate()
+              .fadeIn(delay: 100.ms)
+              .scale(begin: const Offset(0.9, 0.9)),
           const SizedBox(height: 20),
           Text(
             user.fullName,
@@ -134,10 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 4),
           Text(
             user.email,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppTheme.textSecondary,
-            ),
+            style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
           ).animate().fadeIn(delay: 250.ms),
           const SizedBox(height: 6),
           // Role Badge
@@ -160,7 +156,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: auth.isAdmin ? AppTheme.accentColor : AppTheme.primaryLight,
+                color: auth.isAdmin
+                    ? AppTheme.accentColor
+                    : AppTheme.primaryLight,
               ),
             ),
           ).animate().fadeIn(delay: 300.ms),
@@ -236,9 +234,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 label: 'Edit Profile',
                 subtitle: 'Update your name, phone, and department',
                 color: AppTheme.primaryColor,
-                onTap: () {
-                  // TODO: Navigate to edit profile
-                },
+                onTap: () => Navigator.pushNamed(context, '/edit-profile'),
+              ),
+              const SizedBox(height: 10),
+              _ActionItem(
+                icon: Icons.lock_outline_rounded,
+                label: 'Change Password',
+                subtitle: 'Update your account password',
+                color: AppTheme.infoColor,
+                onTap: () => Navigator.pushNamed(context, '/change-password'),
               ),
               const SizedBox(height: 10),
               _ActionItem(
@@ -246,8 +250,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 label: 'Re-register Face',
                 subtitle: 'Update your facial recognition data',
                 color: AppTheme.secondaryColor,
-                onTap: () =>
-                    Navigator.pushNamed(context, '/face-capture'),
+                onTap: () => Navigator.pushNamed(context, '/face-capture'),
+              ),
+              const SizedBox(height: 10),
+              _ActionItem(
+                icon: Icons.notifications_outlined,
+                label: 'Notifications',
+                subtitle: 'View attendance and system updates',
+                color: Colors.amber,
+                onTap: () => Navigator.pushNamed(context, '/notifications'),
+              ),
+              const SizedBox(height: 10),
+              _ActionItem(
+                icon: Icons.event_note_rounded,
+                label: 'Leave Requests',
+                subtitle: 'Submit or review leave requests',
+                color: Colors.teal,
+                onTap: () => Navigator.pushNamed(context, '/leave-requests'),
               ),
               if (auth.isAdmin) ...[
                 const SizedBox(height: 10),
@@ -465,9 +484,7 @@ class _ActionItemState extends State<_ActionItem> {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: _isHovered
-                    ? widget.color
-                    : AppTheme.textMuted,
+                color: _isHovered ? widget.color : AppTheme.textMuted,
                 size: 20,
               ),
             ],

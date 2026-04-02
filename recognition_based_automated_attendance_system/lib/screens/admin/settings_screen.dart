@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/api_config.dart';
@@ -406,7 +404,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _urlController.text = ApiConfig.defaultBaseUrl;
                           await ApiConfig.resetBaseUrl();
                           ApiService().setBaseUrl(ApiConfig.defaultBaseUrl);
-                          if (mounted) {
+                          if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                   content: Text('URL reset to default')),
@@ -844,7 +842,7 @@ class _SwitchRow extends StatelessWidget {
         Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: activeColor ?? AppTheme.successColor,
+          activeThumbColor: activeColor ?? AppTheme.successColor,
         ),
       ],
     );

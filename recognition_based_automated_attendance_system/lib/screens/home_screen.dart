@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/attendance_provider.dart';
+import '../providers/notification_provider.dart';
 import '../models/attendance_model.dart';
 import '../widgets/window_title_bar.dart';
 import '../widgets/sidebar_navigation.dart';
@@ -37,8 +38,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void _loadData() {
     final authProvider = context.read<AuthProvider>();
     final attendanceProvider = context.read<AttendanceProvider>();
+    final notificationProvider = context.read<NotificationProvider>();
 
     attendanceProvider.fetchTodayAttendance();
+    notificationProvider.fetchUnreadCount();
 
     if (authProvider.user != null) {
       attendanceProvider.fetchStats(
@@ -74,6 +77,14 @@ class _HomeScreenState extends State<HomeScreen> {
       Navigator.pushNamed(context, '/admin/classes');
       return;
     }
+    if (index == 8) {
+      Navigator.pushNamed(context, '/notifications');
+      return;
+    }
+    if (index == 9) {
+      Navigator.pushNamed(context, '/leave-requests');
+      return;
+    }
     setState(() => _currentIndex = index);
   }
 
@@ -90,7 +101,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+            ),
             child: const Text('Sign Out'),
           ),
         ],
@@ -170,9 +183,18 @@ class _HomeScreenState extends State<HomeScreen> {
           if (index == 2) _onNavItemSelected(4);
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_rounded),
+            label: 'Dashboard',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history_rounded),
+            label: 'History',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded),
+            label: 'Profile',
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -217,8 +239,8 @@ class _DashboardContent extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, auth, _) {
+    return Consumer2<AuthProvider, NotificationProvider>(
+      builder: (context, auth, notifications, _) {
         final name = auth.user?.fullName ?? 'Teacher';
         final greeting = _getGreeting();
         return Row(
@@ -257,8 +279,10 @@ class _DashboardContent extends StatelessWidget {
                 _HeaderAction(
                   icon: Icons.notifications_outlined,
                   tooltip: 'Notifications',
-                  onTap: () {},
-                  badge: 3,
+                  onTap: () => Navigator.pushNamed(context, '/notifications'),
+                  badge: notifications.unreadCount > 0
+                      ? notifications.unreadCount
+                      : null,
                 ),
               ],
             ),
@@ -281,29 +305,41 @@ class _DashboardContent extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           children: [
             StatsCard(
-              title: 'Total Present',
-              value: '${stats?.presentDays ?? 0}',
-              icon: Icons.check_circle_rounded,
-              iconColor: AppTheme.successColor,
-            ).animate().fadeIn(delay: 300.ms).scale(begin: const Offset(0.95, 0.95)),
+                  title: 'Total Present',
+                  value: '${stats?.presentDays ?? 0}',
+                  icon: Icons.check_circle_rounded,
+                  iconColor: AppTheme.successColor,
+                )
+                .animate()
+                .fadeIn(delay: 300.ms)
+                .scale(begin: const Offset(0.95, 0.95)),
             StatsCard(
-              title: 'Total Late',
-              value: '${stats?.lateDays ?? 0}',
-              icon: Icons.access_time_rounded,
-              iconColor: AppTheme.warningColor,
-            ).animate().fadeIn(delay: 400.ms).scale(begin: const Offset(0.95, 0.95)),
+                  title: 'Total Late',
+                  value: '${stats?.lateDays ?? 0}',
+                  icon: Icons.access_time_rounded,
+                  iconColor: AppTheme.warningColor,
+                )
+                .animate()
+                .fadeIn(delay: 400.ms)
+                .scale(begin: const Offset(0.95, 0.95)),
             StatsCard(
-              title: 'Total Absent',
-              value: '${stats?.absentDays ?? 0}',
-              icon: Icons.cancel_rounded,
-              iconColor: AppTheme.errorColor,
-            ).animate().fadeIn(delay: 500.ms).scale(begin: const Offset(0.95, 0.95)),
+                  title: 'Total Absent',
+                  value: '${stats?.absentDays ?? 0}',
+                  icon: Icons.cancel_rounded,
+                  iconColor: AppTheme.errorColor,
+                )
+                .animate()
+                .fadeIn(delay: 500.ms)
+                .scale(begin: const Offset(0.95, 0.95)),
             StatsCard(
-              title: 'Attendance Rate',
-              value: _calcRate(stats),
-              icon: Icons.trending_up_rounded,
-              iconColor: AppTheme.secondaryColor,
-            ).animate().fadeIn(delay: 600.ms).scale(begin: const Offset(0.95, 0.95)),
+                  title: 'Attendance Rate',
+                  value: _calcRate(stats),
+                  icon: Icons.trending_up_rounded,
+                  iconColor: AppTheme.secondaryColor,
+                )
+                .animate()
+                .fadeIn(delay: 600.ms)
+                .scale(begin: const Offset(0.95, 0.95)),
           ],
         );
       },
@@ -322,10 +358,7 @@ class _DashboardContent extends StatelessWidget {
             child: _QuickActionsPanel(onHistoryTap: onHistoryTap),
           ),
           const SizedBox(width: 20),
-          Expanded(
-            flex: 4,
-            child: _TodayStatusPanel(),
-          ),
+          Expanded(flex: 4, child: _TodayStatusPanel()),
         ],
       );
     }
@@ -349,8 +382,19 @@ class _DashboardContent extends StatelessWidget {
   String _getDateString() {
     final now = DateTime.now();
     final months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return '${days[now.weekday - 1]}, ${months[now.month]} ${now.day}, ${now.year}';
@@ -399,9 +443,10 @@ class _QuickActionsPanel extends StatelessWidget {
                 icon: Icons.group_add_rounded,
                 label: 'Batch Register',
                 color: AppTheme.secondaryColor,
-                onTap: () => Navigator.pushNamed(context, '/batch-registration'),
-              ), 
-              // AMA FUTURA 
+                onTap: () =>
+                    Navigator.pushNamed(context, '/batch-registration'),
+              ),
+              // AMA FUTURA
               // _ActionTile(
               //   icon: Icons.assignment_rounded,
               //   label: 'Exam Proctor',
@@ -419,6 +464,12 @@ class _QuickActionsPanel extends StatelessWidget {
                 label: 'Manage Classes',
                 color: Colors.amber,
                 onTap: () => Navigator.pushNamed(context, '/admin/classes'),
+              ),
+              _ActionTile(
+                icon: Icons.event_note_rounded,
+                label: 'Leave Requests',
+                color: Colors.teal,
+                onTap: () => Navigator.pushNamed(context, '/leave-requests'),
               ),
               _ActionTile(
                 icon: Icons.history_rounded,
@@ -497,7 +548,9 @@ class _ActionTileState extends State<_ActionTile> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: _isHovered ? AppTheme.textPrimary : AppTheme.textSecondary,
+                  color: _isHovered
+                      ? AppTheme.textPrimary
+                      : AppTheme.textSecondary,
                 ),
               ),
             ],
@@ -518,7 +571,9 @@ class _TodayStatusPanel extends StatelessWidget {
       child: Consumer<AttendanceProvider>(
         builder: (context, attendance, _) {
           final todayRecords = attendance.todayAttendance;
-          final todayRecord = todayRecords.isNotEmpty ? todayRecords.first : null;
+          final todayRecord = todayRecords.isNotEmpty
+              ? todayRecords.first
+              : null;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -619,7 +674,11 @@ class _HeaderActionState extends State<_HeaderAction> {
             child: Stack(
               children: [
                 Center(
-                  child: Icon(widget.icon, color: AppTheme.textSecondary, size: 20),
+                  child: Icon(
+                    widget.icon,
+                    color: AppTheme.textSecondary,
+                    size: 20,
+                  ),
                 ),
                 if (widget.badge != null)
                   Positioned(
