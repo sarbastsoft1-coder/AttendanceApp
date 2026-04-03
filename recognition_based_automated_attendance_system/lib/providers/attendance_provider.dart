@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import '../config/api_config.dart';
+import '../models/captured_image.dart';
 import '../models/attendance_model.dart';
 import '../models/settings_model.dart';
 import '../services/api_service.dart';
@@ -51,15 +52,15 @@ class AttendanceProvider with ChangeNotifier {
   bool get hasMoreHistory => _historyPage < _historyTotalPages;
 
   /// Mark attendance using face recognition
-  Future<bool> markAttendance(File image, {String? location}) async {
+  Future<bool> markAttendance(CapturedImage image, {String? location}) async {
     _setLoading(true);
     _error = null;
     _lastMarkedAttendance = null;
 
     try {
-      final multipartFile = await MultipartFile.fromFile(
-        image.path,
-        filename: 'attendance_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      final multipartFile = MultipartFile.fromBytes(
+        image.bytes,
+        filename: image.filename,
       );
 
       final response = await _api.uploadSingleFile(
@@ -86,14 +87,14 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   /// Check out using face recognition
-  Future<bool> checkOut(File image) async {
+  Future<bool> checkOut(CapturedImage image) async {
     _setLoading(true);
     _error = null;
 
     try {
-      final multipartFile = await MultipartFile.fromFile(
-        image.path,
-        filename: 'checkout_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      final multipartFile = MultipartFile.fromBytes(
+        image.bytes,
+        filename: image.filename,
       );
 
       await _api.uploadSingleFile(
@@ -249,7 +250,7 @@ class AttendanceProvider with ChangeNotifier {
 
   /// Perform group room scan to identify multiple students
   Future<RoomScanResult?> performRoomScan(
-    File image, {
+    CapturedImage image, {
     String? department,
     int? classId,
   }) async {
@@ -257,9 +258,9 @@ class AttendanceProvider with ChangeNotifier {
     _error = null;
 
     try {
-      final multipartFile = await MultipartFile.fromFile(
-        image.path,
-        filename: 'room_scan_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      final multipartFile = MultipartFile.fromBytes(
+        image.bytes,
+        filename: image.filename,
       );
 
       final Map<String, dynamic> additionalFields = {};

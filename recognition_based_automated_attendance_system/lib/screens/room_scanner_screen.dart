@@ -2,16 +2,18 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_theme.dart';
 import '../config/api_config.dart';
 import '../localization/localization_extensions.dart';
+import '../models/captured_image.dart';
 import '../providers/attendance_provider.dart';
 import '../models/attendance_model.dart';
 import '../services/api_service.dart';
 import '../utils/camera_selector.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/loading_widget.dart';
 
@@ -47,6 +49,8 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
   String t(String text, {Map<String, String> params = const {}}) =>
       context.t(text, params: params);
+  String tRead(String text, {Map<String, String> params = const {}}) =>
+      context.tRead(text, params: params);
 
   CameraController? _controller;
   bool _isLoadingClasses = true;
@@ -164,7 +168,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  t(
+                  tRead(
                     'Camera is busy. Close any other app using the camera and try again.',
                   ),
                 ),
@@ -202,27 +206,22 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
     try {
       final XFile image = await _controller!.takePicture();
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName = 'room_scan_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedPath = path.join(directory.path, fileName);
-      await image.saveTo(savedPath);
-      final savedFile = File(savedPath);
+      final capturedImage = await CapturedImage.fromXFile(
+        image,
+        fallbackPrefix: 'room_scan',
+      );
 
-      if (await savedFile.exists()) {
-        final result = await attendanceProvider.performRoomScan(
-          savedFile,
-          classId: _selectedClass?.id,
-        );
+      final result = await attendanceProvider.performRoomScan(
+        capturedImage,
+        classId: _selectedClass?.id,
+      );
 
-        if (!mounted) return;
+      if (!mounted) return;
 
-        setState(() {
-          _result = result;
-          _isProcessing = false;
-        });
-      } else {
-        throw Exception(t('Failed to save room scan photo'));
-      }
+      setState(() {
+        _result = result;
+        _isProcessing = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -231,7 +230,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            t('Error during scan: {error}', params: {'error': '$e'}),
+            tRead('Error during scan: {error}', params: {'error': '$e'}),
           ),
         ),
       );
@@ -559,9 +558,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
     }
 
     // Desktop webcam drivers can report wrong orientation metadata.
-    final isDesktop =
-        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-    if (isDesktop && camera.sensorOrientation == 0) {
+    if (PlatformUtils.isNativeDesktop && camera.sensorOrientation == 0) {
       return 2;
     }
 
@@ -792,7 +789,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
     if (_result == null || _result!.absentUsers.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('No absent attendees to export.'))),
+        SnackBar(content: Text(tRead('No absent attendees to export.'))),
       );
       return;
     }
@@ -829,7 +826,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            t(
+            tRead(
               'Saved {count} absent records to {fileName}',
               params: {
                 'count': '${_result!.absentUsers.length}',
@@ -844,7 +841,10 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            t('Failed to export absent list: {error}', params: {'error': '$e'}),
+            tRead(
+              'Failed to export absent list: {error}',
+              params: {'error': '$e'},
+            ),
           ),
         ),
       );

@@ -1,5 +1,6 @@
-import 'dart:io';
 import 'package:camera/camera.dart';
+
+import 'platform_utils.dart';
 
 /// Picks cameras in a consistent way across mobile and desktop.
 class CameraSelector {
@@ -29,7 +30,7 @@ class CameraSelector {
     _ensureCameras(cameras);
 
     // On laptops, back camera often does not exist.
-    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    if (PlatformUtils.isNativeDesktop) {
       return forSelfie(cameras);
     }
 

@@ -1,15 +1,13 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
+import '../models/captured_image.dart';
 import '../providers/attendance_provider.dart';
 import '../utils/camera_selector.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/custom_button.dart';
 
 /// Attendance Screen - Mark attendance using face recognition
@@ -24,7 +22,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   CameraController? _cameraController;
   bool _isCameraReady = false;
   bool _isCapturing = false;
-  File? _capturedImage;
+  CapturedImage? _capturedImage;
   int _previewQuarterTurns = 0;
 
   @override
@@ -55,9 +53,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       await _cameraController!.initialize();
 
-      final isDesktop =
-          Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-      if (isDesktop && frontCamera.sensorOrientation == 0) {
+      if (PlatformUtils.isNativeDesktop &&
+          frontCamera.sensorOrientation == 0) {
         _previewQuarterTurns = 2;
       }
 
@@ -91,29 +88,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     try {
       final XFile image = await _cameraController!.takePicture();
 
-      // Save image to a persistent directory
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName =
-          'attendance_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedPath = path.join(directory.path, fileName);
+      final capturedImage = await CapturedImage.fromXFile(
+        image,
+        fallbackPrefix: 'attendance',
+      );
 
-      await image.saveTo(savedPath);
-      final savedFile = File(savedPath);
-
-      if (await savedFile.exists()) {
-        setState(() {
-          _capturedImage = savedFile;
-          _isCapturing = false;
-        });
-      } else {
-        throw Exception('Failed to save attendance photo');
-      }
+      setState(() {
+        _capturedImage = capturedImage;
+        _isCapturing = false;
+      });
     } catch (e) {
       setState(() {
         _isCapturing = false;
       });
       if (!mounted) return;
-      _showError(context.t('Failed to capture image'));
+      _showError(context.tRead('Failed to capture image'));
     }
   }
 
@@ -134,13 +123,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (success) {
       final attendance = attendanceProvider.lastMarkedAttendance;
       _showSuccessDialog(
-        attendance?.displayName ?? context.t('User'),
+        attendance?.displayName ?? context.tRead('User'),
         attendance?.confidence ?? 0,
         attendance?.status ?? 'present',
       );
     } else {
       _showError(
-        attendanceProvider.error ?? context.t('Failed to mark attendance'),
+        attendanceProvider.error ?? context.tRead('Failed to mark attendance'),
       );
     }
   }
@@ -290,8 +279,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(21),
                 child: _capturedImage != null
-                    ? Image.file(
-                        _capturedImage!,
+                    ? Image.memory(
+                        _capturedImage!.bytes,
                         fit: BoxFit.cover,
                         width: double.infinity,
                       )

@@ -1,14 +1,13 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
 import '../config/app_theme.dart';
 import '../config/api_config.dart';
 import '../localization/localization_extensions.dart';
+import '../models/captured_image.dart';
 import '../services/api_service.dart';
 import '../utils/camera_selector.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/custom_button.dart';
 
 /// Batch Student Registration Screen
@@ -36,6 +35,8 @@ class _BatchStudentRegistrationScreenState
 
   String t(String text, {Map<String, String> params = const {}}) =>
       context.t(text, params: params);
+  String tRead(String text, {Map<String, String> params = const {}}) =>
+      context.tRead(text, params: params);
 
   // Step 1: Class Setup
   final _classNameController = TextEditingController();
@@ -54,7 +55,7 @@ class _BatchStudentRegistrationScreenState
   int _previewQuarterTurns = 0;
 
   // Images for current student
-  List<File> _capturedImages = [];
+  List<CapturedImage> _capturedImages = [];
   bool _isCapturing = false;
   bool _isSubmitting = false;
 
@@ -79,7 +80,7 @@ class _BatchStudentRegistrationScreenState
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        _showError(t('No cameras found'));
+        _showError(tRead('No cameras found'));
         return;
       }
 
@@ -93,9 +94,8 @@ class _BatchStudentRegistrationScreenState
 
       await _cameraController!.initialize();
 
-      final isDesktop =
-          Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-      if (isDesktop && frontCamera.sensorOrientation == 0) {
+      if (PlatformUtils.isNativeDesktop &&
+          frontCamera.sensorOrientation == 0) {
         _previewQuarterTurns = 2;
       }
 
@@ -106,7 +106,7 @@ class _BatchStudentRegistrationScreenState
       }
     } catch (e) {
       _showError(
-        t('Failed to initialize camera: {error}', params: {'error': '$e'}),
+        tRead('Failed to initialize camera: {error}', params: {'error': '$e'}),
       );
     }
   }
@@ -135,12 +135,12 @@ class _BatchStudentRegistrationScreenState
     final studentCount = int.tryParse(_studentCountController.text.trim()) ?? 0;
 
     if (className.isEmpty) {
-      _showError(t('Please enter a class name'));
+      _showError(tRead('Please enter a class name'));
       return;
     }
 
     if (studentCount <= 0 || studentCount > 200) {
-      _showError(t('Please enter a valid number of students (1-200)'));
+      _showError(tRead('Please enter a valid number of students (1-200)'));
       return;
     }
 
@@ -171,7 +171,7 @@ class _BatchStudentRegistrationScreenState
         _isSubmitting = false;
       });
       _showError(
-        t(
+        tRead(
           'Failed to create class: {error}',
           params: {'error': e.toString().replaceFirst('Exception: ', '')},
         ),
@@ -183,7 +183,9 @@ class _BatchStudentRegistrationScreenState
     if (_cameraController == null || !_isCameraReady || _isCapturing) return;
 
     if (_capturedImages.length >= _requiredImages) {
-      _showError(t('Already captured the required images for this student'));
+      _showError(
+        tRead('Already captured the required images for this student'),
+      );
       return;
     }
 
@@ -194,45 +196,38 @@ class _BatchStudentRegistrationScreenState
     try {
       final XFile image = await _cameraController!.takePicture();
 
-      // Save image
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName =
-          'student_${_currentStudentIndex + 1}_${_capturedImages.length + 1}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedPath = path.join(directory.path, fileName);
+      final capturedImage = await CapturedImage.fromXFile(
+        image,
+        fallbackPrefix:
+            'student_${_currentStudentIndex + 1}_${_capturedImages.length + 1}',
+      );
 
-      await image.saveTo(savedPath);
-      final savedFile = File(savedPath);
+      setState(() {
+        _capturedImages.add(capturedImage);
+        _isCapturing = false;
+      });
 
-      if (await savedFile.exists()) {
-        setState(() {
-          _capturedImages.add(savedFile);
-          _isCapturing = false;
-        });
-
-        if (_capturedImages.length == _requiredImages) {
-          _showSuccess(
-            t('All required images captured! Enter name and click Submit.'),
-          );
-        } else {
-          _showSuccess(
-            t(
-              'Image {current}/{total} captured',
-              params: {
-                'current': '${_capturedImages.length}',
-                'total': '$_requiredImages',
-              },
-            ),
-          );
-        }
+      if (_capturedImages.length == _requiredImages) {
+        _showSuccess(
+          tRead('All required images captured! Enter name and click Submit.'),
+        );
       } else {
-        throw Exception(t('Failed to save image'));
+        _showSuccess(
+          tRead(
+            'Image {current}/{total} captured',
+            params: {
+              'current': '${_capturedImages.length}',
+              'total': '$_requiredImages',
+            },
+          ),
+        );
       }
     } catch (e) {
       setState(() {
         _isCapturing = false;
       });
       _showError(
-        t('Failed to capture image: {error}', params: {'error': '$e'}),
+        tRead('Failed to capture image: {error}', params: {'error': '$e'}),
       );
     }
   }
@@ -247,17 +242,17 @@ class _BatchStudentRegistrationScreenState
     final name = _currentStudentNameController.text.trim();
 
     if (name.isEmpty) {
-      _showError(t('Please enter student name'));
+      _showError(tRead('Please enter student name'));
       return;
     }
 
     if (_capturedImages.length < _requiredImages) {
-      _showError(t('Please capture all required images before submitting'));
+      _showError(tRead('Please capture all required images before submitting'));
       return;
     }
 
     if (_classId == null) {
-      _showError(t('Class not created. Please restart registration.'));
+      _showError(tRead('Class not created. Please restart registration.'));
       return;
     }
 
@@ -273,9 +268,9 @@ class _BatchStudentRegistrationScreenState
       formData.fields.add(MapEntry('class_id', _classId.toString()));
 
       for (var image in _capturedImages) {
-        final file = await MultipartFile.fromFile(
-          image.path,
-          filename: 'face_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        final file = MultipartFile.fromBytes(
+          image.bytes,
+          filename: image.filename,
         );
         formData.files.add(MapEntry('images', file));
       }
@@ -313,7 +308,7 @@ class _BatchStudentRegistrationScreenState
           _capturedImages = [];
         });
         _showSuccess(
-          t(
+          tRead(
             'Student registered! Moving to next student ({current}/{total})',
             params: {
               'current': '${_currentStudentIndex + 1}',
@@ -331,7 +326,7 @@ class _BatchStudentRegistrationScreenState
         _isSubmitting = false;
       });
       _showError(
-        t(
+        tRead(
           'Failed to register student: {error}',
           params: {'error': e.toString().replaceFirst('Exception: ', '')},
         ),
@@ -344,7 +339,7 @@ class _BatchStudentRegistrationScreenState
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text(t('Registration Complete!')),
+        title: Text(tRead('Registration Complete!')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -355,7 +350,7 @@ class _BatchStudentRegistrationScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              t(
+              tRead(
                 'Successfully registered {count} students in {className}',
                 params: {
                   'count': '${_registeredStudents.length}',
@@ -366,7 +361,7 @@ class _BatchStudentRegistrationScreenState
             ),
             const SizedBox(height: 8),
             Text(
-              t(
+              tRead(
                 'Total images captured: {count}',
                 params: {
                   'count': '${_registeredStudents.length * _requiredImages}',
@@ -382,7 +377,7 @@ class _BatchStudentRegistrationScreenState
               Navigator.pop(context);
               Navigator.pop(context);
             },
-            child: Text(t('Done')),
+            child: Text(tRead('Done')),
           ),
         ],
       ),
@@ -393,9 +388,9 @@ class _BatchStudentRegistrationScreenState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(t('Student Registered!')),
+        title: Text(tRead('Student Registered!')),
         content: Text(
-          t(
+          tRead(
             'Successfully registered. Add another student to {className}?',
             params: {'className': _className},
           ),
@@ -406,11 +401,11 @@ class _BatchStudentRegistrationScreenState
               Navigator.pop(context); // close dialog
               Navigator.pop(context); // go back to class students
             },
-            child: Text(t('Done')),
+            child: Text(tRead('Done')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(t('Add Another')),
+            child: Text(tRead('Add Another')),
           ),
         ],
       ),
@@ -728,7 +723,8 @@ class _BatchStudentRegistrationScreenState
                           },
                         ),
                   isLoading: _isCapturing,
-                  onPressed: _capturedImages.length < _requiredImages
+                  onPressed:
+                      _isCameraReady && _capturedImages.length < _requiredImages
                       ? _captureImage
                       : null,
                   icon: Icons.camera_alt,
@@ -764,7 +760,7 @@ class _BatchStudentRegistrationScreenState
                                   width: 2,
                                 ),
                                 image: DecorationImage(
-                                  image: FileImage(_capturedImages[index]),
+                                  image: MemoryImage(_capturedImages[index].bytes),
                                   fit: BoxFit.cover,
                                 ),
                               ),

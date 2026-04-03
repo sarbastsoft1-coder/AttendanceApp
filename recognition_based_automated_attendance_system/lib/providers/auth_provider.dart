@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
+import '../models/captured_image.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
@@ -139,7 +139,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   /// Register face with multiple images
-  Future<bool> registerFace(List<File> images) async {
+  Future<bool> registerFace(List<CapturedImage> images) async {
     if (images.length < 2) {
       _error = 'Please capture at least 2 images';
       notifyListeners();
@@ -152,9 +152,9 @@ class AuthProvider with ChangeNotifier {
     try {
       final multipartFiles = <MultipartFile>[];
       for (var image in images) {
-        final file = await MultipartFile.fromFile(
-          image.path,
-          filename: 'face_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        final file = MultipartFile.fromBytes(
+          image.bytes,
+          filename: image.filename,
         );
         multipartFiles.add(file);
       }

@@ -1,13 +1,12 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
 import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
+import '../models/captured_image.dart';
 import '../providers/auth_provider.dart';
 import '../utils/camera_selector.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/custom_button.dart';
 
 /// Face Capture Screen - Captures multiple face images for registration
@@ -20,7 +19,7 @@ class FaceCaptureScreen extends StatefulWidget {
 
 class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   CameraController? _cameraController;
-  final List<File> _capturedImages = [];
+  final List<CapturedImage> _capturedImages = [];
   bool _isCameraReady = false;
   bool _isCapturing = false;
   int _previewQuarterTurns = 0;
@@ -29,13 +28,15 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
   String t(String text, {Map<String, String> params = const {}}) =>
       context.t(text, params: params);
+  String tRead(String text, {Map<String, String> params = const {}}) =>
+      context.tRead(text, params: params);
 
   String _localizeMessage(String message) {
     final minFaceImagesMatch = RegExp(
       r'^Please upload at least (\d+) face images$',
     ).firstMatch(message);
     if (minFaceImagesMatch != null) {
-      return t(
+      return tRead(
         'Please upload at least {count} face images',
         params: {'count': minFaceImagesMatch.group(1)!},
       );
@@ -45,13 +46,13 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       r'^Maximum (\d+) images allowed$',
     ).firstMatch(message);
     if (maxImagesMatch != null) {
-      return t(
+      return tRead(
         'Maximum {count} images allowed',
         params: {'count': maxImagesMatch.group(1)!},
       );
     }
 
-    return t(message);
+    return tRead(message);
   }
 
   @override
@@ -66,7 +67,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        _showError(t('No cameras found'));
+        _showError(tRead('No cameras found'));
         return;
       }
 
@@ -80,9 +81,8 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
       await _cameraController!.initialize();
 
-      final isDesktop =
-          Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-      if (isDesktop && frontCamera.sensorOrientation == 0) {
+      if (PlatformUtils.isNativeDesktop &&
+          frontCamera.sensorOrientation == 0) {
         _previewQuarterTurns = 2;
       }
 
@@ -93,7 +93,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       }
     } catch (e) {
       _showError(
-        t('Failed to initialize camera: {error}', params: {'error': '$e'}),
+        tRead('Failed to initialize camera: {error}', params: {'error': '$e'}),
       );
     }
   }
@@ -120,23 +120,15 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     try {
       final XFile image = await _cameraController!.takePicture();
 
-      // Save image to a persistent directory
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName =
-          'face_${DateTime.now().millisecondsSinceEpoch}_${_capturedImages.length}.jpg';
-      final savedPath = path.join(directory.path, fileName);
+      final capturedImage = await CapturedImage.fromXFile(
+        image,
+        fallbackPrefix: 'face_${_capturedImages.length}',
+      );
 
-      await image.saveTo(savedPath);
-      final savedFile = File(savedPath);
-
-      if (await savedFile.exists()) {
-        setState(() {
-          _capturedImages.add(savedFile);
-          _isCapturing = false;
-        });
-      } else {
-        throw Exception(t('Failed to save captured image'));
-      }
+      setState(() {
+        _capturedImages.add(capturedImage);
+        _isCapturing = false;
+      });
 
       // Haptic feedback
       // HapticFeedback.mediumImpact();
@@ -145,7 +137,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         _isCapturing = false;
       });
       _showError(
-        t('Failed to capture image: {error}', params: {'error': '$e'}),
+        tRead('Failed to capture image: {error}', params: {'error': '$e'}),
       );
     }
   }
@@ -159,7 +151,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   Future<void> _submitFaces() async {
     if (_capturedImages.length < _minImages) {
       _showError(
-        t(
+        tRead(
           'Please capture at least {count} images',
           params: {'count': '$_minImages'},
         ),
@@ -175,7 +167,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(t('Face registered successfully!')),
+          content: Text(tRead('Face registered successfully!')),
           backgroundColor: AppTheme.successColor,
         ),
       );
@@ -316,7 +308,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                               width: 2,
                             ),
                             image: DecorationImage(
-                              image: FileImage(_capturedImages[index]),
+                              image: MemoryImage(_capturedImages[index].bytes),
                               fit: BoxFit.cover,
                             ),
                           ),
