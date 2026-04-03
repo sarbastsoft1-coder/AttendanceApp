@@ -77,6 +77,55 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     _loadAttendance();
   }
 
+  Future<T?> _pickDialogOption<T>({
+    required BuildContext context,
+    required String title,
+    required List<_DialogOption<T>> options,
+  }) async {
+    if (options.isEmpty) return null;
+
+    return showDialog<T>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: SizedBox(
+          width: 360,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: options.length,
+            separatorBuilder: (context, index) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final option = options[index];
+              return ListTile(
+                title: Text(option.label),
+                onTap: () => Navigator.of(context).pop(option.value),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectorField({
+    required String label,
+    required String value,
+    required VoidCallback? onTap,
+    IconData trailingIcon = Icons.arrow_drop_down_rounded,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: Icon(trailingIcon),
+        ),
+        child: Text(value),
+      ),
+    );
+  }
+
   Future<void> _showManualEntryDialog() async {
     final attendanceProvider = context.read<AttendanceProvider>();
     final studentProvider = context.read<StudentManagementProvider>();
@@ -103,8 +152,11 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     await studentProvider.fetchClassStudents(selectedClassId);
     if (!mounted) return;
 
-    int? selectedStudentId = studentProvider.students.isNotEmpty
-        ? studentProvider.students.first.id
+    var availableStudents = studentProvider.students
+        .where((student) => student.classId == selectedClassId)
+        .toList();
+    int? selectedStudentId = availableStudents.isNotEmpty
+        ? availableStudents.first.id
         : null;
     var selectedDate = _endDate ?? DateTime.now();
     var selectedStatus = switch (_statusFilter) {
@@ -120,227 +172,240 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
-            return Consumer<StudentManagementProvider>(
-              builder: (dialogContext, studentsProvider, _) {
-                final students = studentsProvider.students
-                    .where((student) => student.classId == selectedClassId)
-                    .toList();
+            final selectedClass = classes.firstWhere(
+              (classObj) => classObj.id == selectedClassId,
+              orElse: () => classes.first,
+            );
+            final hasSelectedStudent = availableStudents.any(
+              (student) => student.id == selectedStudentId,
+            );
+            final selectedStudent = hasSelectedStudent
+                ? availableStudents.firstWhere(
+                    (student) => student.id == selectedStudentId,
+                  )
+                : null;
 
-                return AlertDialog(
-                  title: Text(t('Manual Entry')),
-                  content: SizedBox(
-                    width: 420,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        DropdownButtonFormField<int>(
-                          key: ValueKey('class-$selectedClassId'),
-                          initialValue: selectedClassId,
-                          decoration: InputDecoration(
-                            labelText: t('Select Class'),
-                          ),
-                          items: classes
-                              .map(
-                                (classObj) => DropdownMenuItem(
-                                  value: classObj.id,
-                                  child: Text(classObj.name),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: isSaving
-                              ? null
-                              : (value) async {
-                                  if (value == null || value == selectedClassId) {
-                                    return;
-                                  }
-                                  setDialogState(() {
-                                    selectedClassId = value;
-                                    selectedStudentId = null;
-                                  });
-                                  await dialogContext
-                                      .read<StudentManagementProvider>()
-                                      .fetchClassStudents(value);
-                                  if (!dialogContext.mounted) return;
-                                  setDialogState(() {
-                                    final reloadedStudents = dialogContext
-                                        .read<StudentManagementProvider>()
-                                        .students
-                                        .where((student) => student.classId == value)
-                                        .toList();
-                                    selectedStudentId =
-                                        reloadedStudents.isNotEmpty
-                                        ? reloadedStudents.first.id
-                                        : null;
-                                  });
-                                },
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<int>(
-                          key: ValueKey(
-                            'student-$selectedClassId-$selectedStudentId',
-                          ),
-                          initialValue: students.any(
-                            (student) => student.id == selectedStudentId,
-                          )
-                              ? selectedStudentId
-                              : null,
-                          decoration: InputDecoration(
-                            labelText: t('Student Name'),
-                          ),
-                          items: students
-                              .map(
-                                (student) => DropdownMenuItem(
-                                  value: student.id,
-                                  child: Text(student.name),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: isSaving || students.isEmpty
-                              ? null
-                              : (value) {
-                                  setDialogState(() {
-                                    selectedStudentId = value;
-                                  });
-                                },
-                        ),
-                        if (students.isEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            t('No students found for this class'),
-                            style: const TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          key: ValueKey('status-$selectedStatus'),
-                          initialValue: selectedStatus,
-                          decoration: InputDecoration(labelText: t('Status')),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'present',
-                              child: Text('Present'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'late',
-                              child: Text('Late'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'absent',
-                              child: Text('Absent'),
-                            ),
-                          ],
-                          onChanged: isSaving
-                              ? null
-                              : (value) {
-                                  if (value == null) return;
-                                  setDialogState(() {
-                                    selectedStatus = value;
-                                  });
-                                },
-                        ),
-                        const SizedBox(height: 16),
-                        InkWell(
-                          onTap: isSaving
-                              ? null
-                              : () async {
-                                  final pickedDate = await showDatePicker(
-                                    context: dialogContext,
-                                    firstDate: DateTime(2024),
-                                    lastDate: DateTime.now().add(
-                                      const Duration(days: 365),
-                                    ),
-                                    initialDate: selectedDate,
-                                  );
-                                  if (pickedDate == null || !dialogContext.mounted) {
-                                    return;
-                                  }
-                                  setDialogState(() {
-                                    selectedDate = DateTime(
-                                      pickedDate.year,
-                                      pickedDate.month,
-                                      pickedDate.day,
-                                      selectedDate.hour,
-                                      selectedDate.minute,
-                                    );
-                                  });
-                                },
-                          child: InputDecorator(
-                            decoration: InputDecoration(
-                              labelText: t('Date'),
-                              suffixIcon: const Icon(Icons.calendar_today_rounded),
-                            ),
-                            child: Text(
-                              DateFormat('EEEE, MMM d, yyyy').format(selectedDate),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: isSaving
-                          ? null
-                          : () => Navigator.of(dialogContext).pop(),
-                      child: Text(t('Cancel')),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: isSaving || selectedStudentId == null
+            return AlertDialog(
+              title: Text(t('Manual Entry')),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSelectorField(
+                      label: t('Select Class'),
+                      value: selectedClass.name,
+                      onTap: isSaving
                           ? null
                           : () async {
-                              setDialogState(() {
-                                isSaving = true;
-                              });
-                              final attendance = await attendanceProvider
-                                  .manualAttendance(
-                                    studentId: selectedStudentId,
-                                    classId: selectedClassId,
-                                    status: selectedStatus,
-                                    attendanceDate: selectedDate,
-                                  );
-                              if (!dialogContext.mounted) return;
-                              setDialogState(() {
-                                isSaving = false;
-                              });
-                              if (attendance == null) {
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      attendanceProvider.error ??
-                                          language.text('Failed to add attendance'),
-                                    ),
-                                    backgroundColor: AppTheme.errorColor,
-                                  ),
-                                );
+                              final pickedClassId = await _pickDialogOption<int>(
+                                context: dialogContext,
+                                title: t('Select Class'),
+                                options: classes
+                                    .map(
+                                      (classObj) => _DialogOption(
+                                        value: classObj.id,
+                                        label: classObj.name,
+                                      ),
+                                    )
+                                    .toList(),
+                              );
+                              if (pickedClassId == null ||
+                                  pickedClassId == selectedClassId) {
                                 return;
                               }
-                              Navigator.of(dialogContext).pop();
-                              _loadAttendance();
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    language.text('Attendance saved successfully'),
-                                  ),
-                                  backgroundColor: AppTheme.successColor,
-                                ),
+                              await studentProvider.fetchClassStudents(
+                                pickedClassId,
                               );
+                              if (!dialogContext.mounted) return;
+                              final reloadedStudents = studentProvider.students
+                                  .where(
+                                    (student) => student.classId == pickedClassId,
+                                  )
+                                  .toList();
+                              setDialogState(() {
+                                selectedClassId = pickedClassId;
+                                availableStudents = reloadedStudents;
+                                selectedStudentId = reloadedStudents.isNotEmpty
+                                    ? reloadedStudents.first.id
+                                    : null;
+                              });
                             },
-                      icon: isSaving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.person_add_alt_1_rounded),
-                      label: Text(t('Save')),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSelectorField(
+                      label: t('Student Name'),
+                      value: selectedStudent?.name ??
+                          (availableStudents.isEmpty
+                              ? t('No students found for this class')
+                              : t('Student Name')),
+                      onTap: isSaving || availableStudents.isEmpty
+                          ? null
+                          : () async {
+                              final pickedStudentId = await _pickDialogOption<int>(
+                                context: dialogContext,
+                                title: t('Student Name'),
+                                options: availableStudents
+                                    .map(
+                                      (student) => _DialogOption(
+                                        value: student.id,
+                                        label: student.name,
+                                      ),
+                                    )
+                                    .toList(),
+                              );
+                              if (pickedStudentId == null) return;
+                              setDialogState(() {
+                                selectedStudentId = pickedStudentId;
+                              });
+                            },
+                    ),
+                    if (availableStudents.isEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        t('No students found for this class'),
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _buildSelectorField(
+                      label: t('Status'),
+                      value: t(
+                        switch (selectedStatus) {
+                          'present' => 'Present',
+                          'late' => 'Late',
+                          'absent' => 'Absent',
+                          _ => 'Present',
+                        },
+                      ),
+                      onTap: isSaving
+                          ? null
+                          : () async {
+                              final pickedStatus = await _pickDialogOption<String>(
+                                context: dialogContext,
+                                title: t('Status'),
+                                options: [
+                                  _DialogOption(
+                                    value: 'present',
+                                    label: t('Present'),
+                                  ),
+                                  _DialogOption(
+                                    value: 'late',
+                                    label: t('Late'),
+                                  ),
+                                  _DialogOption(
+                                    value: 'absent',
+                                    label: t('Absent'),
+                                  ),
+                                ],
+                              );
+                              if (pickedStatus == null) return;
+                              setDialogState(() {
+                                selectedStatus = pickedStatus;
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: isSaving
+                          ? null
+                          : () async {
+                              final pickedDate = await showDatePicker(
+                                context: dialogContext,
+                                firstDate: DateTime(2024),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 365),
+                                ),
+                                initialDate: selectedDate,
+                              );
+                              if (pickedDate == null || !dialogContext.mounted) {
+                                return;
+                              }
+                              setDialogState(() {
+                                selectedDate = DateTime(
+                                  pickedDate.year,
+                                  pickedDate.month,
+                                  pickedDate.day,
+                                  selectedDate.hour,
+                                  selectedDate.minute,
+                                );
+                              });
+                            },
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: t('Date'),
+                          suffixIcon: const Icon(Icons.calendar_today_rounded),
+                        ),
+                        child: Text(
+                          DateFormat('EEEE, MMM d, yyyy').format(selectedDate),
+                        ),
+                      ),
                     ),
                   ],
-                );
-              },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: Text(t('Cancel')),
+                ),
+                ElevatedButton.icon(
+                  onPressed: isSaving || selectedStudentId == null
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            isSaving = true;
+                          });
+                          final attendance = await attendanceProvider
+                              .manualAttendance(
+                                studentId: selectedStudentId,
+                                classId: selectedClassId,
+                                status: selectedStatus,
+                                attendanceDate: selectedDate,
+                              );
+                          if (!dialogContext.mounted) return;
+                          setDialogState(() {
+                            isSaving = false;
+                          });
+                          if (attendance == null) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  attendanceProvider.error ??
+                                      language.text('Failed to add attendance'),
+                                ),
+                                backgroundColor: AppTheme.errorColor,
+                              ),
+                            );
+                            return;
+                          }
+                          Navigator.of(dialogContext).pop();
+                          _loadAttendance();
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                language.text('Attendance saved successfully'),
+                              ),
+                              backgroundColor: AppTheme.successColor,
+                            ),
+                          );
+                        },
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.person_add_alt_1_rounded),
+                  label: Text(t('Save')),
+                ),
+              ],
             );
           },
         );
@@ -614,6 +679,13 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       );
     }
   }
+}
+
+class _DialogOption<T> {
+  final T value;
+  final String label;
+
+  const _DialogOption({required this.value, required this.label});
 }
 
 class _AttendanceCard extends StatelessWidget {
