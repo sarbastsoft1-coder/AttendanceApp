@@ -35,6 +35,10 @@ class ApiConfig {
 
   /// Load saved base URL from SharedPreferences (call once at startup)
   static Future<void> loadBaseUrl() async {
+    if (kIsWeb) {
+      _runtimeBaseUrl = _defaultBaseUrl;
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_baseUrlKey);
     _runtimeBaseUrl = saved == null || saved.trim().isEmpty
