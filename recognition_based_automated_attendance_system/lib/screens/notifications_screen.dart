@@ -35,7 +35,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.t('All notifications marked as read')),
+          content: Text(context.tRead('All notifications marked as read')),
           backgroundColor: AppTheme.successColor,
         ),
       );
@@ -175,9 +175,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.t('Notification removed')),
+          content: Text(context.tRead('Notification removed')),
           action: SnackBarAction(
-            label: context.t('Undo'),
+            label: context.tRead('Undo'),
             onPressed: () {
               // Refresh to show it again (simple undo via re-fetch)
               provider.fetchNotifications();
@@ -278,21 +278,30 @@ class _NotificationCard extends StatelessWidget {
     }
   }
 
-  String _timeAgo(BuildContext context, DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inSeconds < 60) {
-      return context.t('Just now');
+  String _timestampLabel(BuildContext context, DateTime dt) {
+    final localTime = dt.toLocal();
+    final now = DateTime.now();
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final timeFormat = DateFormat('h:mm a', locale);
+    final sameYearDateTimeFormat = DateFormat('MMM d, h:mm a', locale);
+    final fullDateTimeFormat = DateFormat('MMM d, yyyy, h:mm a', locale);
+
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final notificationDate = DateTime(
+      localTime.year,
+      localTime.month,
+      localTime.day,
+    );
+
+    if (notificationDate == startOfToday) {
+      return timeFormat.format(localTime);
     }
-    if (diff.inMinutes < 60) {
-      return context.t('{count}m ago', params: {'count': '${diff.inMinutes}'});
+
+    if (localTime.year == now.year) {
+      return sameYearDateTimeFormat.format(localTime);
     }
-    if (diff.inHours < 24) {
-      return context.t('{count}h ago', params: {'count': '${diff.inHours}'});
-    }
-    if (diff.inDays < 7) {
-      return context.t('{count}d ago', params: {'count': '${diff.inDays}'});
-    }
-    return DateFormat('MMM d').format(dt);
+
+    return fullDateTimeFormat.format(localTime);
   }
 
   String _typeLabel(BuildContext context, String type) {
@@ -457,7 +466,7 @@ class _NotificationCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          _timeAgo(context, notification.createdAt),
+                          _timestampLabel(context, notification.createdAt),
                           style: const TextStyle(
                             fontSize: 11,
                             color: AppTheme.textMuted,
