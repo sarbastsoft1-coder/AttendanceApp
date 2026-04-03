@@ -1025,7 +1025,12 @@ async def get_today_attendance(
 ):
     today = date.today()
     query = db.query(Attendance).filter(func.date(Attendance.date) == today)
-    if current_user.role != "admin":
+    if current_user.role == "teacher":
+        teacher_class_ids = db.query(Class.id).filter(
+            Class.teacher_id == current_user.id
+        )
+        query = query.filter(Attendance.class_id.in_(teacher_class_ids))
+    elif current_user.role != "admin":
         query = query.filter(Attendance.user_id == current_user.id)
 
     records = query.order_by(Attendance.check_in_time.desc()).all()
@@ -1046,7 +1051,12 @@ async def get_attendance_history(
     """Get paginated attendance history with optional filters"""
     query = db.query(Attendance)
 
-    if current_user.role != "admin":
+    if current_user.role == "teacher":
+        teacher_class_ids = db.query(Class.id).filter(
+            Class.teacher_id == current_user.id
+        )
+        query = query.filter(Attendance.class_id.in_(teacher_class_ids))
+    elif current_user.role != "admin":
         query = query.filter(Attendance.user_id == current_user.id)
     elif user_id:
         query = query.filter(Attendance.user_id == user_id)

@@ -35,10 +35,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void _loadHistory() {
     final authProvider = context.read<AuthProvider>();
     final attendanceProvider = context.read<AttendanceProvider>();
+    final user = authProvider.user;
 
-    if (authProvider.user != null) {
+    if (user != null) {
       attendanceProvider.fetchHistory(
-        userId: authProvider.user!.id,
+        userId: user.isStudent ? user.id : null,
         startDate: _selectedDateRange?.start,
         endDate: _selectedDateRange?.end,
       );

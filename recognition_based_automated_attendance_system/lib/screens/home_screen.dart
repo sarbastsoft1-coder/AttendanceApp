@@ -9,6 +9,7 @@ import '../providers/attendance_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/language_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/student_management_provider.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/sidebar_navigation.dart';
 import '../widgets/stats_card.dart';
@@ -37,50 +38,61 @@ class _HomeScreenState extends State<HomeScreen> {
     final authProvider = context.read<AuthProvider>();
     final attendanceProvider = context.read<AttendanceProvider>();
     final notificationProvider = context.read<NotificationProvider>();
+    final studentManagementProvider = context.read<StudentManagementProvider>();
+    final user = authProvider.user;
 
     attendanceProvider.fetchTodayAttendance();
     notificationProvider.fetchUnreadCount();
 
-    if (authProvider.user != null) {
+    if (user == null) {
+      return;
+    }
+
+    if (user.isTeacher || user.isAdmin) {
+      studentManagementProvider.fetchClasses();
+    } else {
       attendanceProvider.fetchStats(
-        authProvider.user!.id,
+        user.id,
         month: DateTime.now().month,
         year: DateTime.now().year,
       );
     }
+  }
 
-    if (authProvider.isAdmin) {
-      attendanceProvider.fetchDashboardStats();
+  Future<void> _openRouteAndRefresh(String routeName) async {
+    await Navigator.pushNamed(context, routeName);
+    if (mounted) {
+      _loadData();
     }
   }
 
   void _onNavItemSelected(int index) {
     if (index == 2) {
-      Navigator.pushNamed(context, '/room-scanner');
+      _openRouteAndRefresh('/room-scanner');
       return;
     }
     if (index == 3) {
-      Navigator.pushNamed(context, '/batch-registration');
+      _openRouteAndRefresh('/batch-registration');
       return;
     }
     if (index == 5) {
-      Navigator.pushNamed(context, '/admin');
+      _openRouteAndRefresh('/admin');
       return;
     }
     if (index == 6) {
-      Navigator.pushNamed(context, '/admin/attendance');
+      _openRouteAndRefresh('/admin/attendance');
       return;
     }
     if (index == 7) {
-      Navigator.pushNamed(context, '/admin/classes');
+      _openRouteAndRefresh('/admin/classes');
       return;
     }
     if (index == 8) {
-      Navigator.pushNamed(context, '/notifications');
+      _openRouteAndRefresh('/notifications');
       return;
     }
     if (index == 9) {
-      Navigator.pushNamed(context, '/leave-requests');
+      _openRouteAndRefresh('/leave-requests');
       return;
     }
     setState(() => _currentIndex = index);
@@ -123,6 +135,11 @@ class _HomeScreenState extends State<HomeScreen> {
         return _DashboardContent(
           onRefresh: _loadData,
           onHistoryTap: () => _onNavItemSelected(1),
+          onRoomScannerTap: () => _openRouteAndRefresh('/room-scanner'),
+          onBatchRegisterTap: () => _openRouteAndRefresh('/batch-registration'),
+          onEditAttendanceTap: () => _openRouteAndRefresh('/admin/attendance'),
+          onClassesTap: () => _openRouteAndRefresh('/admin/classes'),
+          onLeaveRequestsTap: () => _openRouteAndRefresh('/leave-requests'),
         );
       case 1:
         return const HistoryScreen(embedded: true);
@@ -132,6 +149,11 @@ class _HomeScreenState extends State<HomeScreen> {
         return _DashboardContent(
           onRefresh: _loadData,
           onHistoryTap: () => _onNavItemSelected(1),
+          onRoomScannerTap: () => _openRouteAndRefresh('/room-scanner'),
+          onBatchRegisterTap: () => _openRouteAndRefresh('/batch-registration'),
+          onEditAttendanceTap: () => _openRouteAndRefresh('/admin/attendance'),
+          onClassesTap: () => _openRouteAndRefresh('/admin/classes'),
+          onLeaveRequestsTap: () => _openRouteAndRefresh('/leave-requests'),
         );
     }
   }
@@ -199,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/room-scanner'),
+        onPressed: () => _openRouteAndRefresh('/room-scanner'),
         child: const Icon(Icons.qr_code_scanner_rounded),
       ),
     );
@@ -209,10 +231,20 @@ class _HomeScreenState extends State<HomeScreen> {
 class _DashboardContent extends StatelessWidget {
   final VoidCallback onRefresh;
   final VoidCallback onHistoryTap;
+  final VoidCallback onRoomScannerTap;
+  final VoidCallback onBatchRegisterTap;
+  final VoidCallback onEditAttendanceTap;
+  final VoidCallback onClassesTap;
+  final VoidCallback onLeaveRequestsTap;
 
   const _DashboardContent({
     required this.onRefresh,
     required this.onHistoryTap,
+    required this.onRoomScannerTap,
+    required this.onBatchRegisterTap,
+    required this.onEditAttendanceTap,
+    required this.onClassesTap,
+    required this.onLeaveRequestsTap,
   });
 
   @override
@@ -306,9 +338,38 @@ class _DashboardContent extends StatelessWidget {
         ? 2
         : 1;
 
-    return Consumer<AttendanceProvider>(
-      builder: (context, attendance, _) {
+    return Consumer3<AttendanceProvider, AuthProvider, StudentManagementProvider>(
+      builder: (context, attendance, auth, studentManagement, _) {
         final stats = attendance.stats;
+        final user = auth.user;
+        final isManagementUser = user?.isTeacher == true || user?.isAdmin == true;
+        final managementRecords = attendance.todayAttendance
+            .where(
+              (record) =>
+                  record.classId != null ||
+                  record.studentId != null ||
+                  (record.studentName?.trim().isNotEmpty ?? false),
+            )
+            .toList();
+        final totalStudents = studentManagement.classes.fold<int>(
+          0,
+          (sum, classObj) => sum + classObj.studentCount,
+        );
+        final presentCount = managementRecords
+            .where((record) => record.status == 'present')
+            .length;
+        final lateCount = managementRecords
+            .where((record) => record.status == 'late')
+            .length;
+        final absentCount = isManagementUser
+            ? (totalStudents - (presentCount + lateCount)).clamp(0, totalStudents)
+            : stats?.absentDays ?? 0;
+        final rate = isManagementUser
+            ? totalStudents > 0
+                ? '${(((presentCount + lateCount) / totalStudents) * 100).toStringAsFixed(0)}%'
+                : '0%'
+            : _calcRate(stats);
+
         return GridView.count(
           crossAxisCount: crossAxisCount,
           mainAxisSpacing: 16,
@@ -319,7 +380,9 @@ class _DashboardContent extends StatelessWidget {
           children: [
             StatsCard(
                   title: language.tr('totalPresent'),
-                  value: '${stats?.presentDays ?? 0}',
+                  value: isManagementUser
+                      ? '$presentCount'
+                      : '${stats?.presentDays ?? 0}',
                   icon: Icons.check_circle_rounded,
                   iconColor: AppTheme.successColor,
                 )
@@ -328,7 +391,7 @@ class _DashboardContent extends StatelessWidget {
                 .scale(begin: const Offset(0.95, 0.95)),
             StatsCard(
                   title: language.tr('totalLate'),
-                  value: '${stats?.lateDays ?? 0}',
+                  value: isManagementUser ? '$lateCount' : '${stats?.lateDays ?? 0}',
                   icon: Icons.access_time_rounded,
                   iconColor: AppTheme.warningColor,
                 )
@@ -337,7 +400,7 @@ class _DashboardContent extends StatelessWidget {
                 .scale(begin: const Offset(0.95, 0.95)),
             StatsCard(
                   title: language.tr('totalAbsent'),
-                  value: '${stats?.absentDays ?? 0}',
+                  value: '$absentCount',
                   icon: Icons.cancel_rounded,
                   iconColor: AppTheme.errorColor,
                 )
@@ -346,7 +409,7 @@ class _DashboardContent extends StatelessWidget {
                 .scale(begin: const Offset(0.95, 0.95)),
             StatsCard(
                   title: language.tr('attendanceRate'),
-                  value: _calcRate(stats),
+                  value: rate,
                   icon: Icons.trending_up_rounded,
                   iconColor: AppTheme.secondaryColor,
                 )
@@ -368,7 +431,14 @@ class _DashboardContent extends StatelessWidget {
         children: [
           Expanded(
             flex: 6,
-            child: _QuickActionsPanel(onHistoryTap: onHistoryTap),
+            child: _QuickActionsPanel(
+              onHistoryTap: onHistoryTap,
+              onRoomScannerTap: onRoomScannerTap,
+              onBatchRegisterTap: onBatchRegisterTap,
+              onEditAttendanceTap: onEditAttendanceTap,
+              onClassesTap: onClassesTap,
+              onLeaveRequestsTap: onLeaveRequestsTap,
+            ),
           ),
           const SizedBox(width: 20),
           Expanded(flex: 4, child: _TodayStatusPanel()),
@@ -378,7 +448,14 @@ class _DashboardContent extends StatelessWidget {
 
     return Column(
       children: [
-        _QuickActionsPanel(onHistoryTap: onHistoryTap),
+        _QuickActionsPanel(
+          onHistoryTap: onHistoryTap,
+          onRoomScannerTap: onRoomScannerTap,
+          onBatchRegisterTap: onBatchRegisterTap,
+          onEditAttendanceTap: onEditAttendanceTap,
+          onClassesTap: onClassesTap,
+          onLeaveRequestsTap: onLeaveRequestsTap,
+        ),
         const SizedBox(height: 20),
         _TodayStatusPanel(),
       ],
@@ -449,8 +526,20 @@ class _DashboardContent extends StatelessWidget {
 
 class _QuickActionsPanel extends StatelessWidget {
   final VoidCallback onHistoryTap;
+  final VoidCallback onRoomScannerTap;
+  final VoidCallback onBatchRegisterTap;
+  final VoidCallback onEditAttendanceTap;
+  final VoidCallback onClassesTap;
+  final VoidCallback onLeaveRequestsTap;
 
-  const _QuickActionsPanel({required this.onHistoryTap});
+  const _QuickActionsPanel({
+    required this.onHistoryTap,
+    required this.onRoomScannerTap,
+    required this.onBatchRegisterTap,
+    required this.onEditAttendanceTap,
+    required this.onClassesTap,
+    required this.onLeaveRequestsTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -480,36 +569,35 @@ class _QuickActionsPanel extends StatelessWidget {
                 icon: Icons.qr_code_scanner_rounded,
                 label: language.tr('roomScanner'),
                 color: AppTheme.primaryColor,
-                onTap: () => Navigator.pushNamed(context, '/room-scanner'),
+                onTap: onRoomScannerTap,
                 isCompact: isMobile,
               ),
               _ActionTile(
                 icon: Icons.group_add_rounded,
                 label: language.tr('batchRegister'),
                 color: AppTheme.secondaryColor,
-                onTap: () =>
-                    Navigator.pushNamed(context, '/batch-registration'),
+                onTap: onBatchRegisterTap,
                 isCompact: isMobile,
               ),
               _ActionTile(
                 icon: Icons.edit_note_rounded,
                 label: language.tr('editAttendance'),
                 color: AppTheme.infoColor,
-                onTap: () => Navigator.pushNamed(context, '/admin/attendance'),
+                onTap: onEditAttendanceTap,
                 isCompact: isMobile,
               ),
               _ActionTile(
                 icon: Icons.class_rounded,
                 label: language.tr('manageClasses'),
                 color: Colors.amber,
-                onTap: () => Navigator.pushNamed(context, '/admin/classes'),
+                onTap: onClassesTap,
                 isCompact: isMobile,
               ),
               _ActionTile(
                 icon: Icons.event_note_rounded,
                 label: language.tr('leaveRequests'),
                 color: Colors.teal,
-                onTap: () => Navigator.pushNamed(context, '/leave-requests'),
+                onTap: onLeaveRequestsTap,
                 isCompact: isMobile,
               ),
               _ActionTile(
@@ -613,12 +701,36 @@ class _TodayStatusPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: AppTheme.cardDecoration(),
-      child: Consumer<AttendanceProvider>(
-        builder: (context, attendance, _) {
+      child: Consumer3<AttendanceProvider, AuthProvider, StudentManagementProvider>(
+        builder: (context, attendance, auth, studentManagement, _) {
+          final user = auth.user;
+          final isManagementUser = user?.isTeacher == true || user?.isAdmin == true;
           final todayRecords = attendance.todayAttendance;
-          final todayRecord = todayRecords.isNotEmpty
-              ? todayRecords.first
-              : null;
+          final managementRecords = todayRecords
+              .where(
+                (record) =>
+                    record.classId != null ||
+                    record.studentId != null ||
+                    (record.studentName?.trim().isNotEmpty ?? false),
+              )
+              .toList();
+          final todayRecord = isManagementUser
+              ? null
+              : todayRecords.isNotEmpty
+                  ? todayRecords.first
+                  : null;
+          final totalStudents = studentManagement.classes.fold<int>(
+            0,
+            (sum, classObj) => sum + classObj.studentCount,
+          );
+          final presentCount = managementRecords
+              .where((record) => record.status == 'present')
+              .length;
+          final lateCount = managementRecords
+              .where((record) => record.status == 'late')
+              .length;
+          final absentCount = (totalStudents - (presentCount + lateCount))
+              .clamp(0, totalStudents);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -631,7 +743,69 @@ class _TodayStatusPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              if (todayRecord != null)
+              if (isManagementUser)
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgElevated,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.glassBorder, width: 0.5),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        totalStudents > 0
+                            ? '$presentCount / $totalStudents'
+                            : '0 / 0',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        managementRecords.isNotEmpty
+                            ? 'Students recorded today'
+                            : 'No class attendance recorded today',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.textSecondary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _SummaryMetric(
+                              label: language.tr('totalPresent'),
+                              value: '$presentCount',
+                              color: AppTheme.successColor,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _SummaryMetric(
+                              label: language.tr('totalLate'),
+                              value: '$lateCount',
+                              color: AppTheme.warningColor,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _SummaryMetric(
+                              label: language.tr('totalAbsent'),
+                              value: '$absentCount',
+                              color: AppTheme.errorColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+              else if (todayRecord != null)
                 AttendanceStatusCard(
                   status: todayRecord.status,
                   time: todayRecord.formattedTime,
@@ -668,6 +842,50 @@ class _TodayStatusPanel extends StatelessWidget {
         },
       ),
     ).animate().fadeIn(delay: 800.ms).slideY(begin: 0.03, end: 0);
+  }
+}
+
+class _SummaryMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _SummaryMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
