@@ -194,14 +194,14 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildSelectorField(
-                      label: t('Select Class'),
+                      label: language.text('Select Class'),
                       value: selectedClass.name,
                       onTap: isSaving
                           ? null
                           : () async {
                               final pickedClassId = await _pickDialogOption<int>(
                                 context: dialogContext,
-                                title: t('Select Class'),
+                                title: language.text('Select Class'),
                                 options: classes
                                     .map(
                                       (classObj) => _DialogOption(
@@ -235,17 +235,17 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                     ),
                     const SizedBox(height: 16),
                     _buildSelectorField(
-                      label: t('Student Name'),
+                      label: language.text('Student Name'),
                       value: selectedStudent?.name ??
                           (availableStudents.isEmpty
-                              ? t('No students found for this class')
-                              : t('Student Name')),
+                              ? language.text('No students found for this class')
+                              : language.text('Student Name')),
                       onTap: isSaving || availableStudents.isEmpty
                           ? null
                           : () async {
                               final pickedStudentId = await _pickDialogOption<int>(
                                 context: dialogContext,
-                                title: t('Student Name'),
+                                title: language.text('Student Name'),
                                 options: availableStudents
                                     .map(
                                       (student) => _DialogOption(
@@ -264,7 +264,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                     if (availableStudents.isEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
-                        t('No students found for this class'),
+                        language.text('No students found for this class'),
                         style: const TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 12,
@@ -273,8 +273,8 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                     ],
                     const SizedBox(height: 16),
                     _buildSelectorField(
-                      label: t('Status'),
-                      value: t(
+                      label: language.text('Status'),
+                      value: language.text(
                         switch (selectedStatus) {
                           'present' => 'Present',
                           'late' => 'Late',
@@ -287,19 +287,19 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                           : () async {
                               final pickedStatus = await _pickDialogOption<String>(
                                 context: dialogContext,
-                                title: t('Status'),
+                                title: language.text('Status'),
                                 options: [
                                   _DialogOption(
                                     value: 'present',
-                                    label: t('Present'),
+                                    label: language.text('Present'),
                                   ),
                                   _DialogOption(
                                     value: 'late',
-                                    label: t('Late'),
+                                    label: language.text('Late'),
                                   ),
                                   _DialogOption(
                                     value: 'absent',
-                                    label: t('Absent'),
+                                    label: language.text('Absent'),
                                   ),
                                 ],
                               );
@@ -337,7 +337,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                             },
                       child: InputDecorator(
                         decoration: InputDecoration(
-                          labelText: t('Date'),
+                          labelText: language.text('Date'),
                           suffixIcon: const Icon(Icons.calendar_today_rounded),
                         ),
                         child: Text(
@@ -353,7 +353,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                   onPressed: isSaving
                       ? null
                       : () => Navigator.of(dialogContext).pop(),
-                  child: Text(t('Cancel')),
+                  child: Text(language.text('Cancel')),
                 ),
                 ElevatedButton.icon(
                   onPressed: isSaving || selectedStudentId == null
@@ -416,7 +416,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.person_add_alt_1_rounded),
-                  label: Text(t('Save')),
+                  label: Text(language.text('Save')),
                 ),
               ],
             );
