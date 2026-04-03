@@ -324,14 +324,20 @@ class StudentManagementProvider with ChangeNotifier {
     _setLoading(true);
 
     try {
+      final students = await _fetchClassStudentsInternal(classObj.id);
+      _students = students;
+
       final fileName =
           'class_${_safeFileName(classObj.name)}_${DateTime.now().millisecondsSinceEpoch}.csv';
 
       final buffer = StringBuffer()
+        ..write('\uFEFF')
         ..writeln(
-          'id,name,subject,room,start_time,end_time,meeting_days,student_count,created_at',
-        )
-        ..writeln(
+          'class_id,class_name,subject,room,start_time,end_time,meeting_days,student_count,class_created_at,student_id,student_name,linked_user_id,has_registered_face,student_created_at',
+        );
+
+      if (students.isEmpty) {
+        buffer.writeln(
           '${classObj.id},'
           '${_escapeCsv(classObj.name)},'
           '${_escapeCsv(classObj.subject ?? '')},'
@@ -340,8 +346,29 @@ class StudentManagementProvider with ChangeNotifier {
           '${_escapeCsv(classObj.endTime ?? '')},'
           '${_escapeCsv(classObj.meetingDays.join(" | "))},'
           '${classObj.studentCount},'
-          '${classObj.createdAt.toIso8601String()}',
+          '${_formatCsvDateTime(classObj.createdAt)},'
+          ',,,,',
         );
+      } else {
+        for (final student in students) {
+          buffer.writeln(
+            '${classObj.id},'
+            '${_escapeCsv(classObj.name)},'
+            '${_escapeCsv(classObj.subject ?? '')},'
+            '${_escapeCsv(classObj.room ?? '')},'
+            '${_escapeCsv(classObj.startTime ?? '')},'
+            '${_escapeCsv(classObj.endTime ?? '')},'
+            '${_escapeCsv(classObj.meetingDays.join(" | "))},'
+            '${classObj.studentCount},'
+            '${_formatCsvDateTime(classObj.createdAt)},'
+            '${student.id},'
+            '${_escapeCsv(student.name)},'
+            '${student.linkedUserId ?? ''},'
+            '${student.hasRegisteredFace},'
+            '${_formatCsvDateTime(student.createdAt)}',
+          );
+        }
+      }
 
       if (kIsWeb) {
         await download_text_file.downloadTextFile(fileName, buffer.toString());
@@ -492,6 +519,17 @@ class StudentManagementProvider with ChangeNotifier {
         escaped.contains('\n') ||
         escaped.contains('\r');
     return needsQuotes ? '"$escaped"' : escaped;
+  }
+
+  String _formatCsvDateTime(DateTime value) {
+    final local = value.toLocal();
+    final year = local.year.toString().padLeft(4, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    final second = local.second.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute:$second';
   }
 
   List<List<String>> _readCsvRows(String content) {
