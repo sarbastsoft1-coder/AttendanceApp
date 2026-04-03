@@ -25,6 +25,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   String t(String text, {Map<String, String> params = const {}}) =>
       context.t(text, params: params);
+  String tRead(String text, {Map<String, String> params = const {}}) =>
+      context.tRead(text, params: params);
 
   @override
   void dispose() {
@@ -92,7 +94,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(t('Password changed successfully!')),
+          content: Text(tRead('Password changed successfully!')),
           backgroundColor: AppTheme.successColor,
         ),
       );
@@ -100,7 +102,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(auth.error ?? t('Failed to change password')),
+          content: Text(auth.error ?? tRead('Failed to change password')),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -189,7 +191,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 validator: (val) {
                   if (val == null || val.isEmpty) {
-                    return t('Please enter your current password');
+                    return tRead('Please enter your current password');
                   }
                   return null;
                 },
@@ -222,13 +224,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 validator: (val) {
                   if (val == null || val.isEmpty) {
-                    return t('Please enter a new password');
+                    return tRead('Please enter a new password');
                   }
                   if (val.length < 6) {
-                    return t('Password must be at least 6 characters');
+                    return tRead('Password must be at least 6 characters');
                   }
                   if (val == _currentPasswordController.text) {
-                    return t('New password must differ from the current one');
+                    return tRead('New password must differ from the current one');
                   }
                   return null;
                 },
@@ -292,10 +294,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 validator: (val) {
                   if (val == null || val.isEmpty) {
-                    return t('Please confirm your new password');
+                    return tRead('Please confirm your new password');
                   }
                   if (val != _newPasswordController.text) {
-                    return t('Passwords do not match');
+                    return tRead('Passwords do not match');
                   }
                   return null;
                 },
