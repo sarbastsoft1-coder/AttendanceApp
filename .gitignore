@@ -27,3 +27,7 @@ Thumbs.db
 
 # Zip files
 *.zip
+
+# Backend runtime data
+backend/face_images/
+backend/attendance.db
