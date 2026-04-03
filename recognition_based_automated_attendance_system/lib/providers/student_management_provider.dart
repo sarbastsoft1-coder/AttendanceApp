@@ -8,6 +8,9 @@ import 'package:path_provider/path_provider.dart';
 import '../config/api_config.dart';
 import '../models/class_model.dart';
 import '../services/api_service.dart';
+import '../utils/download_text_file_stub.dart'
+    if (dart.library.html) '../utils/download_text_file_web.dart'
+    as download_text_file;
 
 class StudentImportResult {
   final int successCount;
@@ -253,9 +256,6 @@ class StudentManagementProvider with ChangeNotifier {
 
       final fileName =
           'students_${_safeFileName(classObj.name)}_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final directory = await _getExportDirectory();
-      final file = File(path.join(directory.path, fileName));
-
       final buffer = StringBuffer()
         ..writeln('id,name,class_id,has_registered_face,created_at');
 
@@ -265,6 +265,14 @@ class StudentManagementProvider with ChangeNotifier {
         );
       }
 
+      if (kIsWeb) {
+        await download_text_file.downloadTextFile(fileName, buffer.toString());
+        _setLoading(false);
+        return ExportFileResult(fileName: fileName, path: fileName);
+      }
+
+      final directory = await _getExportDirectory();
+      final file = File(path.join(directory.path, fileName));
       await file.writeAsString(buffer.toString());
       _setLoading(false);
       return ExportFileResult(fileName: fileName, path: file.path);
@@ -289,10 +297,17 @@ class StudentManagementProvider with ChangeNotifier {
 
       final fileName =
           'attendance_${_safeFileName(classObj.name)}_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final content = response.data ?? '';
+
+      if (kIsWeb) {
+        await download_text_file.downloadTextFile(fileName, content);
+        _setLoading(false);
+        return ExportFileResult(fileName: fileName, path: fileName);
+      }
+
       final directory = await _getExportDirectory();
       final file = File(path.join(directory.path, fileName));
-
-      await file.writeAsString(response.data ?? '');
+      await file.writeAsString(content);
       _setLoading(false);
       return ExportFileResult(fileName: fileName, path: file.path);
     } catch (e) {
@@ -311,8 +326,6 @@ class StudentManagementProvider with ChangeNotifier {
     try {
       final fileName =
           'class_${_safeFileName(classObj.name)}_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final directory = await _getExportDirectory();
-      final file = File(path.join(directory.path, fileName));
 
       final buffer = StringBuffer()
         ..writeln(
@@ -330,6 +343,14 @@ class StudentManagementProvider with ChangeNotifier {
           '${classObj.createdAt.toIso8601String()}',
         );
 
+      if (kIsWeb) {
+        await download_text_file.downloadTextFile(fileName, buffer.toString());
+        _setLoading(false);
+        return ExportFileResult(fileName: fileName, path: fileName);
+      }
+
+      final directory = await _getExportDirectory();
+      final file = File(path.join(directory.path, fileName));
       await file.writeAsString(buffer.toString());
       _setLoading(false);
       return ExportFileResult(fileName: fileName, path: file.path);

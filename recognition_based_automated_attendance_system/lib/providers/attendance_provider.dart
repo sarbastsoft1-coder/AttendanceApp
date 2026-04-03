@@ -9,6 +9,9 @@ import '../models/attendance_model.dart';
 import '../models/settings_model.dart';
 import '../services/api_service.dart';
 import '../models/user_model.dart';
+import '../utils/download_text_file_stub.dart'
+    if (dart.library.html) '../utils/download_text_file_web.dart'
+    as download_text_file;
 
 /// Attendance Provider - Handles attendance marking and history
 class AttendanceProvider with ChangeNotifier {
@@ -452,13 +455,22 @@ class AttendanceProvider with ChangeNotifier {
         ApiConfig.exportAttendance,
         queryParameters: queryParams,
       );
+      final content = response.data ?? '';
+
+      if (kIsWeb) {
+        final fileName =
+            'attendance_export_${DateTime.now().millisecondsSinceEpoch}.csv';
+        await download_text_file.downloadTextFile(fileName, content);
+        _setLoading(false);
+        return fileName;
+      }
 
       final downloads = !kIsWeb ? await getDownloadsDirectory() : null;
       final directory = downloads ?? await getApplicationDocumentsDirectory();
       final fileName =
           'attendance_export_${DateTime.now().millisecondsSinceEpoch}.csv';
       final file = File(path.join(directory.path, fileName));
-      await file.writeAsString(response.data ?? '');
+      await file.writeAsString(content);
 
       _setLoading(false);
       return file.path;

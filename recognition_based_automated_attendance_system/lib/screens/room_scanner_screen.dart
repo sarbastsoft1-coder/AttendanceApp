@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:path/path.dart' as path;
@@ -13,6 +14,9 @@ import '../providers/attendance_provider.dart';
 import '../models/attendance_model.dart';
 import '../services/api_service.dart';
 import '../utils/camera_selector.dart';
+import '../utils/download_text_file_stub.dart'
+    if (dart.library.html) '../utils/download_text_file_web.dart'
+    as download_text_file;
 import '../utils/platform_utils.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/loading_widget.dart';
@@ -816,11 +820,15 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
         );
       }
 
-      final directory = await getApplicationDocumentsDirectory();
       final fileName =
           'absent_export_class_${_selectedClass?.id ?? 'na'}_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final exportFile = File(path.join(directory.path, fileName));
-      await exportFile.writeAsString(buffer.toString());
+      if (kIsWeb) {
+        await download_text_file.downloadTextFile(fileName, buffer.toString());
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final exportFile = File(path.join(directory.path, fileName));
+        await exportFile.writeAsString(buffer.toString());
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,9 @@ import 'package:path/path.dart' as path;
 import '../../config/app_theme.dart';
 import '../../localization/localization_extensions.dart';
 import '../../providers/attendance_provider.dart';
+import '../../utils/download_text_file_stub.dart'
+    if (dart.library.html) '../../utils/download_text_file_web.dart'
+    as download_text_file;
 import '../../widgets/custom_button.dart';
 
 /// Admin Reports Screen
@@ -385,11 +389,15 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       }
 
       // Save file
-      final directory = await getApplicationDocumentsDirectory();
       final fileName =
           '${_reportType}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final file = File(path.join(directory.path, fileName));
-      await file.writeAsString(buffer.toString());
+      if (kIsWeb) {
+        await download_text_file.downloadTextFile(fileName, buffer.toString());
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File(path.join(directory.path, fileName));
+        await file.writeAsString(buffer.toString());
+      }
 
       if (!mounted) return;
 
