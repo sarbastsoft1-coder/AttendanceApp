@@ -65,6 +65,7 @@ class ApiConfig {
   static const String authLogin = '/api/auth/login-json';
   static const String authVerify = '/api/auth/verify';
   static const String authMe = '/api/auth/me';
+  static const String authDeleteAccount = '/api/auth/me';
   static const String forgotPassword = '/api/auth/forgot-password';
   static const String resetPassword = '/api/auth/reset-password';
   static const String changePassword = '/api/auth/change-password';

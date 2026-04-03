@@ -335,6 +335,23 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Delete the currently authenticated account
+  Future<bool> deleteAccount() async {
+    _setLoading(true);
+    _error = null;
+
+    try {
+      await _api.delete(ApiConfig.authDeleteAccount);
+      await logout();
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      _setLoading(false);
+      return false;
+    }
+  }
+
   /// Get last saved email (for remember me)
   String? getLastEmail() {
     return _storage.getLastEmail();

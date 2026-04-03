@@ -531,6 +531,11 @@ class AppStrings {
       'signOut': 'Sign out',
       'signOutTitle': 'Sign Out',
       'signOutConfirm': 'Are you sure you want to sign out?',
+      'deleteAccountTitle': 'Delete Account',
+      'deleteAccountConfirm':
+          'Are you sure you want to permanently delete your account? This will remove your classes, students, attendance records, and notifications.',
+      'deleteAccountWarning': 'This action cannot be undone.',
+      'deleteAccountFailed': 'Failed to delete account',
       'user': 'User',
       'refresh': 'Refresh',
       'totalPresent': 'Total Present',
@@ -669,6 +674,11 @@ class AppStrings {
       'signOut': 'چوونەدەرەوە',
       'signOutTitle': 'چوونەدەرەوە',
       'signOutConfirm': 'دڵنیایت دەتەوێت بچیتەدەرەوە؟',
+      'deleteAccountTitle': 'سڕینەوەی هەژمار',
+      'deleteAccountConfirm':
+          'دڵنیایت دەتەوێت هەژمارەکەت بە تەواوی بسڕیتەوە؟ ئەمە پۆلەکان، خوێندکاران، تۆمارەکانی ئامادەبوون و ئاگادارکردنەوەکان دەسڕێتەوە.',
+      'deleteAccountWarning': 'ئەم کردارە ناتوانرێت بگەڕێندرێتەوە.',
+      'deleteAccountFailed': 'سڕینەوەی هەژمار سەرکەوتوو نەبوو',
       'user': 'بەکارهێنەر',
       'refresh': 'نوێکردنەوە',
       'totalPresent': 'کۆی ئامادەکان',

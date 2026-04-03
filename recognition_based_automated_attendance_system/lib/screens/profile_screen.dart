@@ -21,6 +21,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isDeletingAccount = false;
+
   @override
   Widget build(BuildContext context) {
     final content = _buildContent();
@@ -321,7 +323,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 text: language.tr('signOutTitle'),
                 icon: Icons.logout_rounded,
                 backgroundColor: AppTheme.errorColor,
-                onPressed: () => _logout(),
+                onPressed: auth.isLoading || _isDeletingAccount
+                    ? null
+                    : () => _logout(),
+              ),
+              const SizedBox(height: 12),
+              CustomButton(
+                text: language.tr('deleteAccountTitle'),
+                icon: Icons.delete_forever_rounded,
+                isOutlined: true,
+                backgroundColor: AppTheme.errorColor,
+                textColor: AppTheme.errorColor,
+                isLoading: _isDeletingAccount,
+                onPressed: auth.isLoading || _isDeletingAccount
+                    ? null
+                    : () => _deleteAccount(),
               ),
             ],
           ),
@@ -358,6 +374,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Navigator.pushReplacementNamed(context, '/login');
       }
     }
+  }
+
+  Future<void> _deleteAccount() async {
+    final language = context.read<LanguageProvider>();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(language.tr('deleteAccountTitle')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(language.tr('deleteAccountConfirm')),
+            const SizedBox(height: 12),
+            Text(
+              language.tr('deleteAccountWarning'),
+              style: const TextStyle(
+                color: AppTheme.errorColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(language.tr('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+            ),
+            child: Text(language.tr('deleteAccountTitle')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) {
+      return;
+    }
+
+    setState(() => _isDeletingAccount = true);
+    final auth = context.read<AuthProvider>();
+    final success = await auth.deleteAccount();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _isDeletingAccount = false);
+
+    if (success) {
+      Navigator.pushReplacementNamed(context, '/login');
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(auth.error ?? language.tr('deleteAccountFailed')),
+        backgroundColor: AppTheme.errorColor,
+      ),
+    );
   }
 }
 

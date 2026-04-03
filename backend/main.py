@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from database import (
     get_db, SessionLocal, User, Attendance, Class, Student, init_db,
@@ -130,6 +130,118 @@ def _write_audit(
         db.flush()
     except Exception as e:
         print(f"Warning: audit log write failed: {e}")
+
+
+def _delete_class_with_dependencies(
+    db: Session,
+    class_obj: Class,
+    actor_id: Optional[int] = None,
+    ip_address: Optional[str] = None,
+):
+    """Delete a class and its managed records without leaving FK orphans."""
+    students = db.query(Student).filter(Student.class_id == class_obj.id).all()
+    student_ids = [student.id for student in students]
+    linked_user_ids = [student.linked_user_id for student in students if student.linked_user_id]
+
+    if linked_user_ids:
+        db.query(User).filter(User.id.in_(linked_user_ids)).update(
+            {User.is_active: False},
+            synchronize_session=False,
+        )
+
+    if student_ids:
+        db.query(LeaveRequest).filter(LeaveRequest.student_id.in_(student_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(Attendance).filter(Attendance.student_id.in_(student_ids)).delete(
+            synchronize_session=False
+        )
+
+    db.query(Attendance).filter(Attendance.class_id == class_obj.id).delete(
+        synchronize_session=False
+    )
+    db.query(QRSession).filter(QRSession.class_id == class_obj.id).delete(
+        synchronize_session=False
+    )
+    db.query(Student).filter(Student.class_id == class_obj.id).delete(
+        synchronize_session=False
+    )
+
+    class_name = class_obj.name
+    class_id = class_obj.id
+    db.delete(class_obj)
+
+    if actor_id is not None:
+        _write_audit(
+            db,
+            actor_id,
+            "delete_class",
+            "Class",
+            class_id,
+            f"Deleted class: {class_name}",
+            ip_address,
+        )
+
+
+def _delete_user_with_dependencies(
+    db: Session,
+    user: User,
+    actor_id: Optional[int] = None,
+    ip_address: Optional[str] = None,
+    action: str = "delete_user",
+):
+    """Delete a user and all dependent records that block removal."""
+    owned_classes = db.query(Class).filter(Class.teacher_id == user.id).all()
+    for class_obj in owned_classes:
+        _delete_class_with_dependencies(db, class_obj)
+
+    db.query(QRSession).filter(QRSession.teacher_id == user.id).delete(
+        synchronize_session=False
+    )
+    db.query(Notification).filter(Notification.user_id == user.id).delete(
+        synchronize_session=False
+    )
+    db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user.id).delete(
+        synchronize_session=False
+    )
+    db.query(Attendance).filter(Attendance.user_id == user.id).delete(
+        synchronize_session=False
+    )
+    db.query(LeaveRequest).filter(
+        or_(
+            LeaveRequest.user_id == user.id,
+            LeaveRequest.submitted_by_id == user.id,
+            LeaveRequest.reviewed_by_id == user.id,
+        )
+    ).delete(synchronize_session=False)
+    db.query(Setting).filter(Setting.updated_by_id == user.id).update(
+        {Setting.updated_by_id: None},
+        synchronize_session=False,
+    )
+    db.query(AuditLog).filter(AuditLog.actor_id == user.id).update(
+        {AuditLog.actor_id: None},
+        synchronize_session=False,
+    )
+    db.query(Student).filter(Student.linked_user_id == user.id).update(
+        {Student.linked_user_id: None},
+        synchronize_session=False,
+    )
+
+    user_id = user.id
+    user_name = user.full_name
+    user_email = user.email
+    face_service.delete_face_images(user_id)
+    db.delete(user)
+
+    _write_audit(
+        db,
+        actor_id,
+        action,
+        "User",
+        user_id,
+        f"Deleted user: {user_name} <{user_email}>",
+        ip_address,
+    )
 
 
 def _push_notification(
@@ -438,6 +550,29 @@ async def get_me(current_user: User = Depends(get_current_active_user)):
     return UserResponse.model_validate(current_user)
 
 
+@app.delete("/api/auth/me", tags=["Authentication"])
+async def delete_my_account(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    if current_user.role == "admin":
+        raise HTTPException(
+            status_code=400,
+            detail="Admin accounts cannot delete themselves",
+        )
+
+    _delete_user_with_dependencies(
+        db,
+        current_user,
+        actor_id=None,
+        ip_address=request.client.host if request.client else None,
+        action="delete_own_account",
+    )
+    db.commit()
+    return {"message": "Account deleted successfully"}
+
+
 @app.post("/api/auth/verify-email/{token}", tags=["Authentication"])
 async def verify_email(token: str, db: Session = Depends(get_db)):
     """Verify user email with token"""
@@ -609,12 +744,13 @@ async def delete_user(
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
-    face_service.delete_face_images(user_id)
-    name = user.full_name
-    db.delete(user)
-    _write_audit(db, current_user.id, "delete_user", "User", user_id,
-                 f"Deleted user: {name}",
-                 request.client.host if request.client else None)
+    _delete_user_with_dependencies(
+        db,
+        user,
+        actor_id=current_user.id,
+        ip_address=request.client.host if request.client else None,
+        action="delete_user",
+    )
     db.commit()
     return {"message": "User deleted successfully"}
 
@@ -2210,19 +2346,12 @@ async def delete_class(
     if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    name = class_obj.name
-    students = db.query(Student).filter(Student.class_id == class_id).all()
-    for student in students:
-        if student.linked_user_id:
-            linked_user = db.query(User).filter(User.id == student.linked_user_id).first()
-            if linked_user:
-                linked_user.is_active = False
-    db.query(Student).filter(Student.class_id == class_id).delete()
-    db.query(QRSession).filter(QRSession.class_id == class_id).delete()
-    db.delete(class_obj)
-    _write_audit(db, current_user.id, "delete_class", "Class", class_id,
-                 f"Deleted class: {name}",
-                 request.client.host if request.client else None)
+    _delete_class_with_dependencies(
+        db,
+        class_obj,
+        actor_id=current_user.id,
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
     return {"message": "Class and all its students deleted successfully"}
 
