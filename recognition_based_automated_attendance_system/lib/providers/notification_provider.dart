@@ -58,6 +58,27 @@ class NotificationProvider with ChangeNotifier {
     }
   }
 
+  /// Fetch a small unread snapshot for live in-app banners.
+  Future<List<AppNotification>> fetchLatestUnreadNotifications({
+    int limit = 10,
+  }) async {
+    try {
+      final response = await _api.get(
+        ApiConfig.notifications,
+        queryParameters: {'unread_only': true, 'limit': limit},
+      );
+
+      return (response.data as List)
+          .map((json) => AppNotification.fromJson(json))
+          .toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching latest unread notifications: $e');
+      }
+      return const [];
+    }
+  }
+
   /// Mark specific notifications (or all) as read
   Future<bool> markAsRead({List<int>? ids}) async {
     try {

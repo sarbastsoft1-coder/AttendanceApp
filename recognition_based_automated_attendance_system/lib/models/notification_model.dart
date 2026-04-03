@@ -33,7 +33,7 @@ class AppNotification {
       relatedType: json['related_type'],
       relatedId: json['related_id'],
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at']).toLocal()
+          ? _parseApiDateTime(json['created_at'])
           : DateTime.now(),
     );
   }
@@ -64,6 +64,28 @@ class AppNotification {
       relatedId: relatedId,
       createdAt: createdAt,
     );
+  }
+
+  static DateTime _parseApiDateTime(dynamic rawValue) {
+    final value = rawValue.toString().trim();
+    final parsed = DateTime.parse(value);
+    final hasTimezone =
+        value.endsWith('Z') || RegExp(r'([+-]\d{2}:\d{2})$').hasMatch(value);
+
+    if (hasTimezone) {
+      return parsed.toLocal();
+    }
+
+    return DateTime.utc(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+      parsed.millisecond,
+      parsed.microsecond,
+    ).toLocal();
   }
 }
 

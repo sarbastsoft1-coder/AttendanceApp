@@ -36,6 +36,7 @@ import 'providers/language_provider.dart';
 import 'providers/student_management_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/admin/class_management_screen.dart';
+import 'widgets/live_notification_listener.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -128,9 +129,11 @@ class MyApp extends StatelessWidget {
             supportedLocales: const [Locale('en'), Locale('ar')],
             localizationsDelegates: GlobalMaterialLocalizations.delegates,
             builder: (context, child) {
-              return Directionality(
-                textDirection: language.textDirection,
-                child: child ?? const SizedBox.shrink(),
+              return LiveNotificationListener(
+                child: Directionality(
+                  textDirection: language.textDirection,
+                  child: child ?? const SizedBox.shrink(),
+                ),
               );
             },
             initialRoute: '/',
