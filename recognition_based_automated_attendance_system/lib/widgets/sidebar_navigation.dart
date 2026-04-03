@@ -79,143 +79,165 @@ class _SidebarNavigationState extends State<SidebarNavigation>
               right: BorderSide(color: AppTheme.glassBorder, width: 0.5),
             ),
           ),
-          child: Column(
-            children: [
-              const SizedBox(height: 16),
-              _buildLogo(language),
-              const SizedBox(height: 32),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      _SidebarItem(
-                        icon: Icons.dashboard_rounded,
-                        label: language.tr('dashboard'),
-                        isSelected: widget.currentIndex == 0,
-                        isExpanded: _isExpanded,
-                        onTap: () => widget.onItemSelected(0),
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompactHeight = constraints.maxHeight < 760;
+
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        children: [
+                          SizedBox(height: isCompactHeight ? 10 : 16),
+                          _buildLogo(language),
+                          SizedBox(height: isCompactHeight ? 20 : 32),
+                          _buildNavigationSection(language, isCompactHeight),
+                          const Spacer(),
+                          _buildCollapseToggle(language),
+                          SizedBox(height: isCompactHeight ? 6 : 8),
+                          _buildUserSection(language),
+                          SizedBox(height: isCompactHeight ? 10 : 16),
+                        ],
                       ),
-                      _SidebarItem(
-                        icon: Icons.history_rounded,
-                        label: language.tr('history'),
-                        isSelected: widget.currentIndex == 1,
-                        isExpanded: _isExpanded,
-                        onTap: () => widget.onItemSelected(1),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.qr_code_scanner_rounded,
-                        label: language.tr('roomScanner'),
-                        isSelected: widget.currentIndex == 2,
-                        isExpanded: _isExpanded,
-                        onTap: () => widget.onItemSelected(2),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.group_add_rounded,
-                        label: language.tr('batchRegister'),
-                        isSelected: widget.currentIndex == 3,
-                        isExpanded: _isExpanded,
-                        onTap: () => widget.onItemSelected(3),
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Divider(
-                          color: AppTheme.glassBorder,
-                          thickness: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _SidebarItem(
-                        icon: Icons.person_rounded,
-                        label: language.tr('profile'),
-                        isSelected: widget.currentIndex == 4,
-                        isExpanded: _isExpanded,
-                        onTap: () => widget.onItemSelected(4),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.notifications_outlined,
-                        label: language.tr('notifications'),
-                        isSelected: widget.currentIndex == 8,
-                        isExpanded: _isExpanded,
-                        onTap: () => widget.onItemSelected(8),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.event_note_rounded,
-                        label: language.tr('leaveRequests'),
-                        isSelected: widget.currentIndex == 9,
-                        isExpanded: _isExpanded,
-                        onTap: () => widget.onItemSelected(9),
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Divider(
-                          color: AppTheme.glassBorder,
-                          thickness: 0.5,
-                        ),
-                      ),
-                      if (_isExpanded)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            left: 20,
-                            top: 12,
-                            bottom: 4,
-                          ),
-                          child: Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: Text(
-                              language.tr('management'),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.textMuted,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                      _SidebarItem(
-                        icon: Icons.edit_note_rounded,
-                        label: language.tr('editAttendance'),
-                        isSelected: widget.currentIndex == 6,
-                        isExpanded: _isExpanded,
-                        onTap: () => widget.onItemSelected(6),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.class_rounded,
-                        label: language.tr('classes'),
-                        isSelected: widget.currentIndex == 7,
-                        isExpanded: _isExpanded,
-                        onTap: () => widget.onItemSelected(7),
-                      ),
-                      Consumer<AuthProvider>(
-                        builder: (context, auth, _) {
-                          if (!auth.isAdmin) return const SizedBox.shrink();
-                          return Column(
-                            children: [
-                              _SidebarItem(
-                                icon: Icons.admin_panel_settings_rounded,
-                                label: language.tr('adminPanel'),
-                                isSelected: widget.currentIndex == 5,
-                                isExpanded: _isExpanded,
-                                onTap: () => widget.onItemSelected(5),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              _buildCollapseToggle(language),
-              const SizedBox(height: 8),
-              _buildUserSection(language),
-              const SizedBox(height: 16),
-            ],
+                );
+              },
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildNavigationSection(dynamic language, bool isCompactHeight) {
+    return Column(
+      children: [
+        _SidebarItem(
+          icon: Icons.dashboard_rounded,
+          label: language.tr('dashboard'),
+          isSelected: widget.currentIndex == 0,
+          isExpanded: _isExpanded,
+          onTap: () => widget.onItemSelected(0),
+          compact: isCompactHeight,
+        ),
+        _SidebarItem(
+          icon: Icons.history_rounded,
+          label: language.tr('history'),
+          isSelected: widget.currentIndex == 1,
+          isExpanded: _isExpanded,
+          onTap: () => widget.onItemSelected(1),
+          compact: isCompactHeight,
+        ),
+        _SidebarItem(
+          icon: Icons.qr_code_scanner_rounded,
+          label: language.tr('roomScanner'),
+          isSelected: widget.currentIndex == 2,
+          isExpanded: _isExpanded,
+          onTap: () => widget.onItemSelected(2),
+          compact: isCompactHeight,
+        ),
+        _SidebarItem(
+          icon: Icons.group_add_rounded,
+          label: language.tr('batchRegister'),
+          isSelected: widget.currentIndex == 3,
+          isExpanded: _isExpanded,
+          onTap: () => widget.onItemSelected(3),
+          compact: isCompactHeight,
+        ),
+        SizedBox(height: isCompactHeight ? 4 : 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Divider(
+            color: AppTheme.glassBorder,
+            thickness: 0.5,
+          ),
+        ),
+        SizedBox(height: isCompactHeight ? 4 : 8),
+        _SidebarItem(
+          icon: Icons.person_rounded,
+          label: language.tr('profile'),
+          isSelected: widget.currentIndex == 4,
+          isExpanded: _isExpanded,
+          onTap: () => widget.onItemSelected(4),
+          compact: isCompactHeight,
+        ),
+        _SidebarItem(
+          icon: Icons.notifications_outlined,
+          label: language.tr('notifications'),
+          isSelected: widget.currentIndex == 8,
+          isExpanded: _isExpanded,
+          onTap: () => widget.onItemSelected(8),
+          compact: isCompactHeight,
+        ),
+        _SidebarItem(
+          icon: Icons.event_note_rounded,
+          label: language.tr('leaveRequests'),
+          isSelected: widget.currentIndex == 9,
+          isExpanded: _isExpanded,
+          onTap: () => widget.onItemSelected(9),
+          compact: isCompactHeight,
+        ),
+        SizedBox(height: isCompactHeight ? 4 : 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Divider(
+            color: AppTheme.glassBorder,
+            thickness: 0.5,
+          ),
+        ),
+        if (_isExpanded)
+          Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              top: isCompactHeight ? 8 : 12,
+              bottom: 4,
+            ),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                language.tr('management'),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textMuted,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ),
+          ),
+        _SidebarItem(
+          icon: Icons.edit_note_rounded,
+          label: language.tr('editAttendance'),
+          isSelected: widget.currentIndex == 6,
+          isExpanded: _isExpanded,
+          onTap: () => widget.onItemSelected(6),
+          compact: isCompactHeight,
+        ),
+        _SidebarItem(
+          icon: Icons.class_rounded,
+          label: language.tr('classes'),
+          isSelected: widget.currentIndex == 7,
+          isExpanded: _isExpanded,
+          onTap: () => widget.onItemSelected(7),
+          compact: isCompactHeight,
+        ),
+        Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            if (!auth.isAdmin) return const SizedBox.shrink();
+            return _SidebarItem(
+              icon: Icons.admin_panel_settings_rounded,
+              label: language.tr('adminPanel'),
+              isSelected: widget.currentIndex == 5,
+              isExpanded: _isExpanded,
+              onTap: () => widget.onItemSelected(5),
+              compact: isCompactHeight,
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -404,6 +426,7 @@ class _SidebarItem extends StatefulWidget {
   final bool isSelected;
   final bool isExpanded;
   final VoidCallback onTap;
+  final bool compact;
 
   const _SidebarItem({
     required this.icon,
@@ -411,6 +434,7 @@ class _SidebarItem extends StatefulWidget {
     required this.isSelected,
     required this.isExpanded,
     required this.onTap,
+    this.compact = false,
   });
 
   @override
@@ -423,6 +447,8 @@ class _SidebarItemState extends State<_SidebarItem> {
   @override
   Widget build(BuildContext context) {
     final isActive = widget.isSelected;
+    final verticalPadding = widget.compact ? 10.0 : 12.0;
+    final iconSize = widget.compact ? 20.0 : 22.0;
     final color = isActive
         ? AppTheme.primaryColor
         : _isHovered
@@ -441,7 +467,7 @@ class _SidebarItemState extends State<_SidebarItem> {
             duration: AppTheme.animFast,
             padding: EdgeInsets.symmetric(
               horizontal: widget.isExpanded ? 14 : 0,
-              vertical: 12,
+              vertical: verticalPadding,
             ),
             decoration: BoxDecoration(
               color: isActive
@@ -462,7 +488,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                   ? MainAxisAlignment.start
                   : MainAxisAlignment.center,
               children: [
-                Icon(widget.icon, color: color, size: 22),
+                Icon(widget.icon, color: color, size: iconSize),
                 if (widget.isExpanded) ...[
                   const SizedBox(width: 12),
                   Text(

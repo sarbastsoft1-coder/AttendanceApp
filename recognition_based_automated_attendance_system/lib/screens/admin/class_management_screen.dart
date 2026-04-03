@@ -27,6 +27,8 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
 
   String t(String text, {Map<String, String> params = const {}}) =>
       context.t(text, params: params);
+  String tRead(String text, {Map<String, String> params = const {}}) =>
+      context.tRead(text, params: params);
 
   @override
   void initState() {
@@ -244,8 +246,8 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                 SnackBar(
                   content: Text(
                     success
-                        ? t('Class deleted successfully')
-                        : t('Failed to delete class'),
+                        ? tRead('Class deleted successfully')
+                        : tRead('Failed to delete class'),
                   ),
                   backgroundColor: success
                       ? AppTheme.successColor
@@ -272,13 +274,15 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     if (result == null) {
       _showSnackBar(
         context.read<StudentManagementProvider>().error ??
-            t('Failed to export class.'),
+            tRead('Failed to export class.'),
         isError: true,
       );
       return;
     }
 
-    _showSnackBar(t('Class exported to {path}', params: {'path': result.path}));
+    _showSnackBar(
+      tRead('Class exported to {path}', params: {'path': result.path}),
+    );
   }
 
   Future<void> _importClassesCsv() async {
@@ -293,7 +297,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
 
     final filePath = picked.files.single.path;
     if (filePath == null) {
-      _showSnackBar(t('Selected file could not be read.'), isError: true);
+      _showSnackBar(tRead('Selected file could not be read.'), isError: true);
       return;
     }
 
@@ -309,7 +313,10 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     }
 
     if (result == null) {
-      _showSnackBar(provider.error ?? t('Class import failed.'), isError: true);
+      _showSnackBar(
+        provider.error ?? tRead('Class import failed.'),
+        isError: true,
+      );
       return;
     }
 
