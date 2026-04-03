@@ -51,25 +51,28 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen>
   }
 
   void _showSubmitDialog() {
+    final screenContext = context;
     showDialog(
       context: context,
       builder: (context) => _SubmitLeaveDialog(
         onSubmit: ({required DateTime date, required String reason}) async {
-          final provider = context.read<LeaveRequestProvider>();
-          final auth = context.read<AuthProvider>();
+          final provider = screenContext.read<LeaveRequestProvider>();
+          final auth = screenContext.read<AuthProvider>();
           final success = await provider.submitLeaveRequest(
             userId: auth.user?.id,
             leaveDate: date,
             reason: reason,
           );
-          if (!context.mounted) return;
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
+          if (!screenContext.mounted) return;
+          if (success) {
+            Navigator.of(screenContext).pop();
+          }
+          ScaffoldMessenger.of(screenContext).showSnackBar(
             SnackBar(
               content: Text(
                 success
-                    ? context.t('Leave request submitted!')
-                    : (provider.error ?? context.t('Failed to submit')),
+                    ? screenContext.tRead('Leave request submitted!')
+                    : (provider.error ?? screenContext.tRead('Failed to submit')),
               ),
               backgroundColor: success
                   ? AppTheme.successColor
@@ -241,6 +244,7 @@ class _LeaveCard extends StatelessWidget {
   }
 
   void _showReviewDialog(BuildContext context) {
+    final screenContext = context;
     final noteController = TextEditingController();
     String selectedStatus = 'approved';
 
@@ -363,23 +367,26 @@ class _LeaveCard extends StatelessWidget {
                                   ? null
                                   : noteController.text.trim(),
                             );
-                            if (!context.mounted) return;
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            if (!screenContext.mounted) return;
+                            if (success) {
+                              Navigator.of(screenContext).pop();
+                            }
+                            ScaffoldMessenger.of(screenContext).showSnackBar(
                               SnackBar(
                                 content: Text(
                                   success
-                                      ? context.t(
+                                      ? screenContext.tRead(
                                           'Leave request {status}',
                                           params: {
-                                            'status': context.t(
+                                            'status': screenContext.tRead(
                                               selectedStatus == 'approved'
                                                   ? 'Approved'
                                                   : 'Rejected',
                                             ),
                                           },
                                         )
-                                      : (provider.error ?? context.t('Failed')),
+                                      : (provider.error ??
+                                          screenContext.tRead('Failed')),
                                 ),
                                 backgroundColor: success
                                     ? AppTheme.successColor
