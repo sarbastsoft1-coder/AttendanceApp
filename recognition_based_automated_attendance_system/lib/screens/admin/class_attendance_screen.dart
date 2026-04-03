@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../localization/localization_extensions.dart';
 import '../../models/class_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/student_management_provider.dart';
@@ -25,6 +26,9 @@ class _ClassAttendanceScreenState extends State<ClassAttendanceScreen> {
 
   DateTime _selectedDate = DateTime.now();
   final Map<int, String> _statusByStudentId = {};
+
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
 
   @override
   void initState() {
@@ -115,8 +119,13 @@ class _ClassAttendanceScreenState extends State<ClassAttendanceScreen> {
       SnackBar(
         content: Text(
           success
-              ? 'Roll call saved for ${DateFormat('MMM d, yyyy').format(_selectedDate)}'
-              : (attendanceProvider.error ?? 'Failed to save roll call'),
+              ? t(
+                  'Roll call saved for {date}',
+                  params: {
+                    'date': DateFormat('MMM d, yyyy').format(_selectedDate),
+                  },
+                )
+              : (attendanceProvider.error ?? t('Failed to save roll call')),
         ),
         backgroundColor: success ? AppTheme.successColor : AppTheme.errorColor,
       ),
@@ -141,8 +150,11 @@ class _ClassAttendanceScreenState extends State<ClassAttendanceScreen> {
       SnackBar(
         content: Text(
           result == null
-              ? (provider.error ?? 'Failed to export attendance')
-              : 'Attendance exported to ${result.path}',
+              ? (provider.error ?? t('Failed to export attendance'))
+              : t(
+                  'Attendance exported to {path}',
+                  params: {'path': result.path},
+                ),
         ),
         backgroundColor: result == null
             ? AppTheme.errorColor
@@ -164,21 +176,23 @@ class _ClassAttendanceScreenState extends State<ClassAttendanceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.classObj.name} Attendance'),
+        title: Text(
+          t('{name} Attendance', params: {'name': widget.classObj.name}),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.date_range_rounded),
-            tooltip: 'Select Date',
+            tooltip: t('Select Date'),
             onPressed: _pickDate,
           ),
           IconButton(
             icon: const Icon(Icons.download_rounded),
-            tooltip: 'Export Attendance',
+            tooltip: t('Export Attendance'),
             onPressed: _exportAttendance,
           ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
+            tooltip: t('Refresh'),
             onPressed: _loadData,
           ),
         ],
@@ -191,9 +205,9 @@ class _ClassAttendanceScreenState extends State<ClassAttendanceScreen> {
                 _buildSummaryRow(),
                 Expanded(
                   child: students.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
-                            'No students found for this class.',
+                            t('No students found for this class.'),
                             style: TextStyle(color: AppTheme.textSecondary),
                           ),
                         )
@@ -226,7 +240,7 @@ class _ClassAttendanceScreenState extends State<ClassAttendanceScreen> {
               child: OutlinedButton.icon(
                 onPressed: _markAllPresent,
                 icon: const Icon(Icons.done_all_rounded),
-                label: const Text('Mark All Present'),
+                label: Text(t('Mark All Present')),
               ),
             ),
             const SizedBox(width: 12),
@@ -234,7 +248,7 @@ class _ClassAttendanceScreenState extends State<ClassAttendanceScreen> {
               child: ElevatedButton.icon(
                 onPressed: students.isEmpty ? null : _saveRollCall,
                 icon: const Icon(Icons.save_rounded),
-                label: const Text('Save Roll Call'),
+                label: Text(t('Save Roll Call')),
               ),
             ),
           ],
@@ -367,8 +381,8 @@ class _StudentAttendanceCard extends StatelessWidget {
                       ),
                       Text(
                         student.hasRegisteredFace
-                            ? 'Face registered'
-                            : 'No face data',
+                            ? context.t('Face registered')
+                            : context.t('No face data'),
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppTheme.textSecondary,
@@ -382,15 +396,15 @@ class _StudentAttendanceCard extends StatelessWidget {
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
               initialValue: value,
-              decoration: const InputDecoration(
-                labelText: 'Attendance Status',
+              decoration: InputDecoration(
+                labelText: context.t('Attendance Status'),
                 border: OutlineInputBorder(),
               ),
               items: _ClassAttendanceScreenState._statuses
                   .map(
                     (status) => DropdownMenuItem(
                       value: status,
-                      child: Text(_labelForStatus(status)),
+                      child: Text(_labelForStatus(context, status)),
                     ),
                   )
                   .toList(),
@@ -406,18 +420,18 @@ class _StudentAttendanceCard extends StatelessWidget {
     );
   }
 
-  String _labelForStatus(String status) {
+  String _labelForStatus(BuildContext context, String status) {
     switch (status) {
       case 'present':
-        return 'Present';
+        return context.t('Present');
       case 'late':
-        return 'Late';
+        return context.t('Late');
       case 'absent':
-        return 'Absent';
+        return context.t('Absent');
       case 'half_day':
-        return 'Half Day';
+        return context.t('Half Day');
       default:
-        return status;
+        return context.t(status);
     }
   }
 }
@@ -455,7 +469,7 @@ class _SummaryPill extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              label,
+              context.t(label),
               style: const TextStyle(
                 fontSize: 11,
                 color: AppTheme.textSecondary,

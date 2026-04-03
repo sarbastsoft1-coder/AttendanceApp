@@ -101,5 +101,6 @@ class LeaveRequest {
     }
   }
 
-  String get displayName => userName ?? studentName ?? submittedByName ?? 'Unknown';
+  String get displayName =>
+      userName ?? studentName ?? submittedByName ?? 'Unknown';
 }

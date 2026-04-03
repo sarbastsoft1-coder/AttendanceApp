@@ -13,7 +13,8 @@ class NotificationProvider with ChangeNotifier {
   String? _error;
 
   List<AppNotification> get notifications => _notifications;
-  List<AppNotification> get unread => _notifications.where((n) => !n.isRead).toList();
+  List<AppNotification> get unread =>
+      _notifications.where((n) => !n.isRead).toList();
   int get unreadCount => _unreadCount;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -27,10 +28,7 @@ class NotificationProvider with ChangeNotifier {
     try {
       final response = await _api.get(
         ApiConfig.notifications,
-        queryParameters: {
-          if (unreadOnly) 'unread_only': true,
-          'limit': 50,
-        },
+        queryParameters: {if (unreadOnly) 'unread_only': true, 'limit': 50},
       );
 
       _notifications = (response.data as List)
@@ -70,7 +68,9 @@ class NotificationProvider with ChangeNotifier {
 
       // Update local state
       if (ids == null) {
-        _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
+        _notifications = _notifications
+            .map((n) => n.copyWith(isRead: true))
+            .toList();
         _unreadCount = 0;
       } else {
         _notifications = _notifications.map((n) {

@@ -61,10 +61,7 @@ class SettingsProvider with ChangeNotifier {
     _error = null;
 
     try {
-      await _api.put(
-        ApiConfig.settingByKey(key),
-        data: {'value': value},
-      );
+      await _api.put(ApiConfig.settingByKey(key), data: {'value': value});
 
       // Re-fetch to get the updated AppSettings object
       await fetchSettings();
@@ -88,7 +85,7 @@ class SettingsProvider with ChangeNotifier {
           'settings': {
             'late_threshold_hour': hour.toString(),
             'late_threshold_minute': minute.toString(),
-          }
+          },
         },
       );
 

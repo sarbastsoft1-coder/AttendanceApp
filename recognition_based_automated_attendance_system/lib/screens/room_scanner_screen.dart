@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_theme.dart';
 import '../config/api_config.dart';
+import '../localization/localization_extensions.dart';
 import '../providers/attendance_provider.dart';
 import '../models/attendance_model.dart';
 import '../services/api_service.dart';
@@ -43,6 +44,9 @@ class _RoomScannerClassOption {
 
 class _RoomScannerScreenState extends State<RoomScannerScreen> {
   final ApiService _api = ApiService();
+
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
 
   CameraController? _controller;
   bool _isLoadingClasses = true;
@@ -105,7 +109,6 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
     await _initializeCamera();
   }
 
-
   Future<void> _initializeCamera() async {
     // Fully dispose old controller first, set to null immediately
     final oldController = _controller;
@@ -151,15 +154,19 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
         break; // Success — stop retrying
       } catch (e) {
         // Camera still busy, will retry
-        try { await _controller?.dispose(); } catch (_) {}
+        try {
+          await _controller?.dispose();
+        } catch (_) {}
         _controller = null;
         if (delayMs == delays.last) {
           // All retries exhausted
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text(
-                  'Camera is busy. Close any other app using the camera and try again.',
+                content: Text(
+                  t(
+                    'Camera is busy. Close any other app using the camera and try again.',
+                  ),
                 ),
                 duration: const Duration(seconds: 5),
               ),
@@ -178,7 +185,6 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
     if (mounted) setState(() => _isInitializing = false);
   }
-
 
   Future<void> _captureAndScan() async {
     if (_controller == null ||
@@ -215,16 +221,20 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
           _isProcessing = false;
         });
       } else {
-        throw Exception('Failed to save room scan photo');
+        throw Exception(t('Failed to save room scan photo'));
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isProcessing = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error during scan: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            t('Error during scan: {error}', params: {'error': '$e'}),
+          ),
+        ),
+      );
     }
   }
 
@@ -246,18 +256,20 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
     if (_isInitializing) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Room Scanner')),
+        appBar: AppBar(title: Text(t('Room Scanner'))),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Room Scanner - ${_selectedClass!.name}'),
+        title: Text(
+          t('Room Scanner - {name}', params: {'name': _selectedClass!.name}),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.class_rounded),
-            tooltip: 'Change Class',
+            tooltip: t('Change Class'),
             onPressed: () async {
               final oldController = _controller;
               _controller = null;
@@ -267,13 +279,15 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
                 _result = null;
                 _isInitializing = true;
               });
-              try { await oldController?.dispose(); } catch (_) {}
+              try {
+                await oldController?.dispose();
+              } catch (_) {}
             },
           ),
           if (_result == null)
             IconButton(
               icon: const Icon(Icons.rotate_right),
-              tooltip: 'Rotate Camera',
+              tooltip: t('Rotate Camera'),
               onPressed: () {
                 setState(() {
                   _previewQuarterTurns = (_previewQuarterTurns + 1) % 4;
@@ -313,14 +327,14 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
   Widget _buildClassSelectionScreen() {
     return Scaffold(
-      appBar: AppBar(title: const Text('Select Class')),
+      appBar: AppBar(title: Text(t('Select Class'))),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Choose a class before starting Room Scanner',
+            Text(
+              t('Choose a class before starting Room Scanner'),
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
@@ -343,7 +357,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _loadClasses,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
+                  label: Text(t('Retry')),
                 ),
               ),
             ] else if (_classes.isEmpty) ...[
@@ -357,8 +371,10 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
                     color: Colors.orange.withValues(alpha: 0.25),
                   ),
                 ),
-                child: const Text(
-                  'No classes found. Create a class first in Batch Register.',
+                child: Text(
+                  t(
+                    'No classes found. Create a class first in Batch Register.',
+                  ),
                   style: TextStyle(color: Colors.orange),
                 ),
               ),
@@ -367,7 +383,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
                 onPressed: () =>
                     Navigator.pushNamed(context, '/batch-registration'),
                 icon: const Icon(Icons.group_add),
-                label: const Text('Open Batch Register'),
+                label: Text(t('Open Batch Register')),
               ),
             ] else ...[
               Expanded(
@@ -381,7 +397,12 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
                       child: ListTile(
                         leading: const Icon(Icons.class_rounded),
                         title: Text(classOption.name),
-                        subtitle: Text('${classOption.studentCount} students'),
+                        subtitle: Text(
+                          t(
+                            '{count} students',
+                            params: {'count': '${classOption.studentCount}'},
+                          ),
+                        ),
                         trailing: const Icon(
                           Icons.arrow_forward_ios_rounded,
                           size: 16,
@@ -401,7 +422,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
   Widget _buildScannerInterface() {
     if (_controller == null || !_controller!.value.isInitialized) {
-      return const Center(child: Text('Camera not available'));
+      return Center(child: Text(t('Camera not available')));
     }
 
     final mediaQuery = MediaQuery.of(context);
@@ -423,21 +444,26 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Scan Room',
+                Text(
+                  t('Scan Room'),
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Class: ${_selectedClass?.name ?? '-'}',
+                  t(
+                    'Class: {name}',
+                    params: {'name': _selectedClass?.name ?? '-'},
+                  ),
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     color: AppTheme.primaryColor,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  'Take one photo to detect all faces in the selected class.',
+                Text(
+                  t(
+                    'Take one photo to detect all faces in the selected class.',
+                  ),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey),
                 ),
@@ -487,7 +513,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
   Widget _buildCameraPreview() {
     if (_controller == null || !_controller!.value.isInitialized) {
-      return const Center(child: Text('Camera not available'));
+      return Center(child: Text(t('Camera not available')));
     }
 
     final previewSize = _controller!.value.previewSize;
@@ -608,18 +634,24 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            const Text(
-              'No Students Recognized',
+            Text(
+              t('No Students Recognized'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Text(
               result.message.isNotEmpty
-                  ? result.message
-                  : 'No faces in this photo match any students in the selected class.',
+                  ? t(result.message)
+                  : t(
+                      'No faces in this photo match any students in the selected class.',
+                    ),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, color: Colors.grey, height: 1.5),
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 48),
             CustomButton(
@@ -685,7 +717,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
           ),
         ),
         Text(
-          label,
+          t(label),
           style: const TextStyle(color: Colors.white70, fontSize: 14),
         ),
       ],
@@ -693,6 +725,8 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
   }
 
   Widget _buildSectionHeader(String title, Color color) {
+    final isMissingSection = title == 'Missing Attendees';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
@@ -707,12 +741,12 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
           ),
           const SizedBox(width: 8),
           Text(
-            title,
+            t(title),
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const Spacer(),
           Text(
-            title.contains('Missing')
+            isMissingSection
                 ? '${_result?.absentCount}'
                 : '${_result?.presentCount}',
             style: TextStyle(color: color, fontWeight: FontWeight.bold),
@@ -725,7 +759,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
   Widget _buildUserTile(dynamic user, bool isPresent) {
     final rawEmail = (user.email ?? '').toString();
     final subtitleText = rawEmail.endsWith('@student.example.com')
-        ? 'Student ID: ${user.id}'
+        ? t('Student ID: {id}', params: {'id': '${user.id}'})
         : rawEmail;
 
     return Card(
@@ -758,7 +792,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
     if (_result == null || _result!.absentUsers.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No absent attendees to export.')),
+        SnackBar(content: Text(t('No absent attendees to export.'))),
       );
       return;
     }
@@ -795,14 +829,24 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Saved ${_result!.absentUsers.length} absent records to $fileName',
+            t(
+              'Saved {count} absent records to {fileName}',
+              params: {
+                'count': '${_result!.absentUsers.length}',
+                'fileName': fileName,
+              },
+            ),
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to export absent list: $e')),
+        SnackBar(
+          content: Text(
+            t('Failed to export absent list: {error}', params: {'error': '$e'}),
+          ),
+        ),
       );
     }
   }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
 import '../utils/camera_selector.dart';
 import '../widgets/custom_button.dart';
@@ -23,8 +24,35 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   bool _isCameraReady = false;
   bool _isCapturing = false;
   int _previewQuarterTurns = 0;
-  static const int _requiredImages = 5;
-  static const int _minImages = 3;
+  static const int _requiredImages = 2;
+  static const int _minImages = _requiredImages;
+
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
+
+  String _localizeMessage(String message) {
+    final minFaceImagesMatch = RegExp(
+      r'^Please upload at least (\d+) face images$',
+    ).firstMatch(message);
+    if (minFaceImagesMatch != null) {
+      return t(
+        'Please upload at least {count} face images',
+        params: {'count': minFaceImagesMatch.group(1)!},
+      );
+    }
+
+    final maxImagesMatch = RegExp(
+      r'^Maximum (\d+) images allowed$',
+    ).firstMatch(message);
+    if (maxImagesMatch != null) {
+      return t(
+        'Maximum {count} images allowed',
+        params: {'count': maxImagesMatch.group(1)!},
+      );
+    }
+
+    return t(message);
+  }
 
   @override
   void initState() {
@@ -38,7 +66,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        _showError('No cameras found');
+        _showError(t('No cameras found'));
         return;
       }
 
@@ -64,14 +92,19 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
         });
       }
     } catch (e) {
-      _showError('Failed to initialize camera: $e');
+      _showError(
+        t('Failed to initialize camera: {error}', params: {'error': '$e'}),
+      );
     }
   }
 
   void _showError(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: AppTheme.errorColor),
+        SnackBar(
+          content: Text(_localizeMessage(message)),
+          backgroundColor: AppTheme.errorColor,
+        ),
       );
     }
   }
@@ -102,7 +135,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
           _isCapturing = false;
         });
       } else {
-        throw Exception('Failed to save captured image');
+        throw Exception(t('Failed to save captured image'));
       }
 
       // Haptic feedback
@@ -111,7 +144,9 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       setState(() {
         _isCapturing = false;
       });
-      _showError('Failed to capture image: $e');
+      _showError(
+        t('Failed to capture image: {error}', params: {'error': '$e'}),
+      );
     }
   }
 
@@ -123,7 +158,12 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
   Future<void> _submitFaces() async {
     if (_capturedImages.length < _minImages) {
-      _showError('Please capture at least $_minImages images');
+      _showError(
+        t(
+          'Please capture at least {count} images',
+          params: {'count': '$_minImages'},
+        ),
+      );
       return;
     }
 
@@ -134,8 +174,8 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Face registered successfully!'),
+        SnackBar(
+          content: Text(t('Face registered successfully!')),
           backgroundColor: AppTheme.successColor,
         ),
       );
@@ -155,13 +195,13 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Register Your Face'),
+        title: Text(t('Register Your Face')),
         automaticallyImplyLeading: false,
         actions: [
           if (_isCameraReady)
             IconButton(
               icon: const Icon(Icons.rotate_right),
-              tooltip: 'Rotate Camera',
+              tooltip: t('Rotate Camera'),
               onPressed: () {
                 setState(() {
                   _previewQuarterTurns = (_previewQuarterTurns + 1) % 4;
@@ -173,7 +213,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
               // Skip for now
               Navigator.pushReplacementNamed(context, '/home');
             },
-            child: const Text('Skip'),
+            child: Text(t('Skip')),
           ),
         ],
       ),
@@ -189,7 +229,10 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Capture $_requiredImages images of your face from different angles',
+                    t(
+                      'Capture {count} images of your face from different angles',
+                      params: {'count': '$_requiredImages'},
+                    ),
                     style: const TextStyle(
                       color: AppTheme.primaryDark,
                       fontSize: 14,
@@ -346,7 +389,9 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                             ),
                           )
                         : const Icon(Icons.camera_alt),
-                    label: Text(_isCapturing ? 'Capturing...' : 'Capture'),
+                    label: Text(
+                      _isCapturing ? t('Capturing...') : t('Capture'),
+                    ),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),

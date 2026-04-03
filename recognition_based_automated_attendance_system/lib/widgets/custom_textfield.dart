@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 
 /// Premium Custom TextField with glassmorphic design and animated focus
 class CustomTextField extends StatefulWidget {
@@ -71,6 +73,9 @@ class _CustomTextFieldState extends State<CustomTextField> {
 
   @override
   Widget build(BuildContext context) {
+    final label = context.t(widget.label);
+    final hint = widget.hint == null ? null : context.t(widget.hint!);
+
     return AnimatedContainer(
       duration: AppTheme.animFast,
       decoration: BoxDecoration(
@@ -97,14 +102,11 @@ class _CustomTextFieldState extends State<CustomTextField> {
         textInputAction: widget.textInputAction,
         focusNode: _focusNode,
         autofocus: widget.autofocus,
-        style: const TextStyle(
-          fontSize: 15,
-          color: AppTheme.textPrimary,
-        ),
+        style: const TextStyle(fontSize: 15, color: AppTheme.textPrimary),
         cursorColor: AppTheme.primaryColor,
         decoration: InputDecoration(
-          labelText: widget.label,
-          hintText: widget.hint,
+          labelText: label,
+          hintText: hint,
           prefixIcon: widget.prefixIcon != null
               ? Icon(
                   widget.prefixIcon,
@@ -117,7 +119,9 @@ class _CustomTextFieldState extends State<CustomTextField> {
           suffixIcon: widget.obscureText
               ? IconButton(
                   icon: Icon(
-                    _obscureText ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                    _obscureText
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
                     color: AppTheme.textMuted,
                     size: 20,
                   ),
@@ -134,15 +138,24 @@ class _CustomTextFieldState extends State<CustomTextField> {
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppTheme.glassBorder, width: 0.5),
+            borderSide: const BorderSide(
+              color: AppTheme.glassBorder,
+              width: 0.5,
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppTheme.glassBorder, width: 0.5),
+            borderSide: const BorderSide(
+              color: AppTheme.glassBorder,
+              width: 0.5,
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
+            borderSide: const BorderSide(
+              color: AppTheme.primaryColor,
+              width: 1.5,
+            ),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -150,11 +163,17 @@ class _CustomTextFieldState extends State<CustomTextField> {
           ),
           focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppTheme.errorColor, width: 1.5),
+            borderSide: const BorderSide(
+              color: AppTheme.errorColor,
+              width: 1.5,
+            ),
           ),
           disabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppTheme.glassBorder, width: 0.5),
+            borderSide: const BorderSide(
+              color: AppTheme.glassBorder,
+              width: 0.5,
+            ),
           ),
           labelStyle: TextStyle(
             color: _isFocused ? AppTheme.primaryLight : AppTheme.textSecondary,

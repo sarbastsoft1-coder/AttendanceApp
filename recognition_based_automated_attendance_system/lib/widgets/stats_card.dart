@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 
 /// Premium Statistics Card with glassmorphic design and hover effects
 class StatsCard extends StatefulWidget {
@@ -30,6 +32,7 @@ class _StatsCardState extends State<StatsCard> {
   @override
   Widget build(BuildContext context) {
     final color = widget.iconColor ?? AppTheme.primaryColor;
+    final translatedTitle = context.t(widget.title);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -94,7 +97,7 @@ class _StatsCardState extends State<StatsCard> {
               ),
               const SizedBox(height: 2),
               Text(
-                widget.title,
+                translatedTitle,
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppTheme.textSecondary,
@@ -159,6 +162,10 @@ class _AttendanceStatusCardState extends State<AttendanceStatusCard> {
 
   @override
   Widget build(BuildContext context) {
+    final normalizedStatus =
+        widget.status[0].toUpperCase() +
+        widget.status.substring(1).toLowerCase();
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -197,11 +204,7 @@ class _AttendanceStatusCardState extends State<AttendanceStatusCard> {
                   color: _statusColor.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  _statusIcon,
-                  color: _statusColor,
-                  size: 28,
-                ),
+                child: Icon(_statusIcon, color: _statusColor, size: 28),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -209,7 +212,7 @@ class _AttendanceStatusCardState extends State<AttendanceStatusCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.status.toUpperCase(),
+                      context.t(normalizedStatus).toUpperCase(),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -219,7 +222,10 @@ class _AttendanceStatusCardState extends State<AttendanceStatusCard> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Checked in at ${widget.time}',
+                      context.t(
+                        'Checked in at {time}',
+                        params: {'time': widget.time},
+                      ),
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppTheme.textSecondary,

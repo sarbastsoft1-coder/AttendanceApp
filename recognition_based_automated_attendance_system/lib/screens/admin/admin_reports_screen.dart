@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../../config/app_theme.dart';
+import '../../localization/localization_extensions.dart';
 import '../../providers/attendance_provider.dart';
 import '../../widgets/custom_button.dart';
 
@@ -22,11 +23,14 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
   String _reportType = 'summary';
   bool _isGenerating = false;
 
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reports'),
+        title: Text(t('Reports')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -38,8 +42,8 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Report Type Selection
-            const Text(
-              'Select Report Type',
+            Text(
+              t('Select Report Type'),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -64,14 +68,14 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
             _buildReportTypeCard(
               'absent',
               'Absent Report',
-              'List of absent students/teachers',
+              t('List of absent attendees'),
               Icons.person_off,
             ),
             const SizedBox(height: 24),
 
             // Date Range Selection
-            const Text(
-              'Select Date Range',
+            Text(
+              t('Select Date Range'),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -110,8 +114,8 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
             const SizedBox(height: 24),
 
             // Quick Reports
-            const Text(
-              'Quick Reports',
+            Text(
+              t('Quick Reports'),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -195,7 +199,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    context.t(title),
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: isSelected
@@ -205,7 +209,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    subtitle,
+                    context.t(subtitle),
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   ),
                 ],
@@ -258,7 +262,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              label,
+              context.t(label),
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 4),
@@ -302,7 +306,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
             Icon(icon, color: AppTheme.primaryColor),
             const SizedBox(height: 8),
             Text(
-              title,
+              context.t(title),
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ],
@@ -391,7 +395,9 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Report saved: $fileName'),
+          content: Text(
+            t('Report saved: {fileName}', params: {'fileName': fileName}),
+          ),
           backgroundColor: AppTheme.successColor,
         ),
       );
@@ -399,7 +405,9 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to generate report: $e'),
+          content: Text(
+            t('Failed to generate report: {error}', params: {'error': '$e'}),
+          ),
           backgroundColor: AppTheme.errorColor,
         ),
       );

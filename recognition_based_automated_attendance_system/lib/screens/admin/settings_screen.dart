@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/api_config.dart';
 import '../../config/app_theme.dart';
+import '../../localization/localization_extensions.dart';
 import '../../models/settings_model.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/theme_provider.dart';
@@ -39,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isSaving = false;
   bool _isTestingUrl = false;
   String? _urlTestResult;
+  bool? _urlTestSuccess;
 
   @override
   void initState() {
@@ -101,14 +103,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final updated = AppSettings(
       lateThresholdHour: _lateHour,
       lateThresholdMinute: _lateMinute,
-      attendanceAlertPct:
-          double.tryParse(_alertPctController.text) ?? 75.0,
-      qrSessionMinutes:
-          int.tryParse(_qrMinutesController.text) ?? 15,
+      attendanceAlertPct: double.tryParse(_alertPctController.text) ?? 75.0,
+      qrSessionMinutes: int.tryParse(_qrMinutesController.text) ?? 15,
       minFaceImages: int.tryParse(_minFaceController.text) ?? 3,
       maxFaceImages: int.tryParse(_maxFaceController.text) ?? 10,
       appName: _appNameController.text.trim().isEmpty
-          ? 'Face Attendance System'
+          ? context.tr('appTitle')
           : _appNameController.text.trim(),
       allowFaceAttendance: _allowFace,
       allowQrAttendance: _allowQr,
@@ -126,11 +126,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success
-            ? 'Settings saved successfully'
-            : (provider.error ?? 'Failed to save settings')),
-        backgroundColor:
-            success ? AppTheme.successColor : AppTheme.errorColor,
+        content: Text(
+          success
+              ? context.t('Settings saved successfully')
+              : (provider.error ?? context.t('Failed to save settings')),
+        ),
+        backgroundColor: success ? AppTheme.successColor : AppTheme.errorColor,
       ),
     );
   }
@@ -144,8 +145,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Backend URL updated. Restart the app to apply fully.'),
+      SnackBar(
+        content: Text(context.tr('backendUrlUpdated')),
         backgroundColor: AppTheme.successColor,
       ),
     );
@@ -158,24 +159,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _isTestingUrl = true;
       _urlTestResult = null;
+      _urlTestSuccess = null;
     });
 
     try {
       // Try a GET /health to the new URL
       final dio = ApiService().createTestDio(url);
-      final response = await dio.get('/health').timeout(
-        const Duration(seconds: 5),
-      );
+      final response = await dio
+          .get('/health')
+          .timeout(const Duration(seconds: 5));
       setState(() {
         _isTestingUrl = false;
+        _urlTestSuccess = response.statusCode == 200;
         _urlTestResult = response.statusCode == 200
-            ? 'Connected! Server is healthy.'
-            : 'Server responded with status ${response.statusCode}';
+            ? context.tr('connectedHealthy')
+            : context.tr(
+                'serverRespondedWithStatus',
+                params: {'code': '${response.statusCode}'},
+              );
       });
     } catch (e) {
       setState(() {
         _isTestingUrl = false;
-        _urlTestResult = 'Failed to connect: ${e.toString().split(':').first}';
+        _urlTestSuccess = false;
+        _urlTestResult = context.tr(
+          'failedToConnect',
+          params: {'reason': e.toString().split(':').first},
+        );
       });
     }
   }
@@ -211,7 +221,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('System Settings'),
+        title: Text(context.tr('systemSettings')),
         actions: [
           if (_hasUnsavedChanges)
             _isSaving
@@ -230,10 +240,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   )
                 : TextButton.icon(
                     onPressed: _save,
-                    icon: const Icon(Icons.save_rounded,
-                        size: 18, color: AppTheme.primaryColor),
-                    label: const Text(
-                      'Save',
+                    icon: const Icon(
+                      Icons.save_rounded,
+                      size: 18,
+                      color: AppTheme.primaryColor,
+                    ),
+                    label: Text(
+                      context.tr('save'),
                       style: TextStyle(
                         color: AppTheme.primaryColor,
                         fontWeight: FontWeight.w600,
@@ -242,7 +255,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Reload from server',
+            tooltip: context.tr('reloadFromServer'),
             onPressed: () async {
               await context.read<SettingsProvider>().fetchSettings();
               _populateFields();
@@ -268,22 +281,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Container(
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
-                      color:
-                          AppTheme.warningColor.withValues(alpha: 0.15),
+                      color: AppTheme.warningColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: AppTheme.warningColor.withValues(alpha: 0.4),
                       ),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.warning_amber_rounded,
-                            color: AppTheme.warningColor, size: 18),
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: AppTheme.warningColor,
+                          size: 18,
+                        ),
                         SizedBox(width: 10),
                         Text(
-                          'You have unsaved changes',
+                          context.tr('unsavedChanges'),
                           style: TextStyle(
                             color: AppTheme.warningColor,
                             fontWeight: FontWeight.w600,
@@ -297,26 +314,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ── Theme ──────────────────────────────────
                 _SectionHeader(
                   icon: Icons.palette_outlined,
-                  title: 'Appearance',
+                  title: context.tr('appearance'),
                 ),
                 const SizedBox(height: 12),
-                _SettingsCard(
-                  child: _ThemeToggleRow(),
-                ),
+                _SettingsCard(child: _ThemeToggleRow()),
                 const SizedBox(height: 24),
 
                 // ── Backend URL ────────────────────────────
                 _SectionHeader(
                   icon: Icons.cloud_outlined,
-                  title: 'Backend Connection',
+                  title: context.tr('backendConnection'),
                 ),
                 const SizedBox(height: 12),
                 _SettingsCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'API Base URL',
+                      Text(
+                        context.tr('apiBaseUrl'),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -333,10 +348,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 hintText: 'http://localhost:8000',
                                 prefixIcon: Icon(Icons.link_rounded),
                                 contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
                               ),
-                              onChanged: (_) => setState(
-                                  () => _urlTestResult = null),
+                              onChanged: (_) =>
+                                  setState(() => _urlTestResult = null),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -345,27 +362,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.secondaryColor,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 14),
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
                             ),
                             child: _isTestingUrl
                                 ? const SizedBox(
                                     width: 16,
                                     height: 16,
                                     child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white),
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
                                   )
-                                : const Text('Test',
-                                    style: TextStyle(color: Colors.white)),
+                                : Text(
+                                    context.tr('test'),
+                                    style: TextStyle(color: Colors.white),
+                                  ),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
                             onPressed: _saveBackendUrl,
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 14),
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
                             ),
-                            child: const Text('Apply'),
+                            child: Text(context.tr('apply')),
                           ),
                         ],
                       ),
@@ -374,11 +398,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Row(
                           children: [
                             Icon(
-                              _urlTestResult!.startsWith('Connected')
+                              _urlTestSuccess == true
                                   ? Icons.check_circle_rounded
                                   : Icons.error_outline_rounded,
                               size: 14,
-                              color: _urlTestResult!.startsWith('Connected')
+                              color: _urlTestSuccess == true
                                   ? AppTheme.successColor
                                   : AppTheme.errorColor,
                             ),
@@ -388,10 +412,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 _urlTestResult!,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color:
-                                      _urlTestResult!.startsWith('Connected')
-                                          ? AppTheme.successColor
-                                          : AppTheme.errorColor,
+                                  color: _urlTestSuccess == true
+                                      ? AppTheme.successColor
+                                      : AppTheme.errorColor,
                                 ),
                               ),
                             ),
@@ -406,13 +429,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ApiService().setBaseUrl(ApiConfig.defaultBaseUrl);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('URL reset to default')),
+                              SnackBar(
+                                content: Text(context.tr('urlResetDefault')),
+                              ),
                             );
                           }
                         },
-                        child: const Text(
-                          'Reset to default (localhost:8000)',
+                        child: Text(
+                          context.tr('resetToDefault'),
                           style: TextStyle(
                             fontSize: 12,
                             color: AppTheme.primaryLight,
@@ -428,7 +452,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ── Attendance Time ────────────────────────
                 _SectionHeader(
                   icon: Icons.access_time_rounded,
-                  title: 'Attendance Time',
+                  title: context.tr('attendanceTime'),
                 ),
                 const SizedBox(height: 12),
                 _SettingsCard(
@@ -436,28 +460,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       _SettingRow(
                         icon: Icons.watch_later_outlined,
-                        title: 'Late Check-In Threshold',
-                        subtitle: 'Students arriving after this time are marked late',
+                        title: context.tr('lateCheckInThreshold'),
+                        subtitle: context.tr('studentsArrivingLate'),
                         trailing: GestureDetector(
                           onTap: _pickLateTime,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 8),
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryColor
-                                  .withValues(alpha: 0.1),
+                              color: AppTheme.primaryColor.withValues(
+                                alpha: 0.1,
+                              ),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: AppTheme.primaryColor
-                                    .withValues(alpha: 0.4),
+                                color: AppTheme.primaryColor.withValues(
+                                  alpha: 0.4,
+                                ),
                               ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.edit_rounded,
-                                    size: 14,
-                                    color: AppTheme.primaryLight),
+                                const Icon(
+                                  Icons.edit_rounded,
+                                  size: 14,
+                                  color: AppTheme.primaryLight,
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   _formatTime(_lateHour, _lateMinute),
@@ -475,8 +505,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const Divider(color: AppTheme.glassBorder, height: 24),
                       _TextInputRow(
                         icon: Icons.warning_amber_rounded,
-                        title: 'Attendance Alert Threshold',
-                        subtitle: 'Notify when attendance falls below this %',
+                        title: context.tr('attendanceAlertThreshold'),
+                        subtitle: context.tr('notifyWhenAttendanceBelow'),
                         controller: _alertPctController,
                         suffix: '%',
                         keyboardType: TextInputType.number,
@@ -490,7 +520,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ── Attendance Methods ─────────────────────
                 _SectionHeader(
                   icon: Icons.how_to_reg_rounded,
-                  title: 'Attendance Methods',
+                  title: context.tr('attendanceMethods'),
                 ),
                 const SizedBox(height: 12),
                 _SettingsCard(
@@ -498,8 +528,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       _SwitchRow(
                         icon: Icons.face_retouching_natural,
-                        title: 'Face Recognition',
-                        subtitle: 'Allow attendance via facial recognition',
+                        title: context.t('Face Recognition'),
+                        subtitle: context.tr('allowAttendanceFace'),
                         value: _allowFace,
                         onChanged: (v) {
                           setState(() => _allowFace = v);
@@ -509,8 +539,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const Divider(color: AppTheme.glassBorder, height: 24),
                       _SwitchRow(
                         icon: Icons.qr_code_scanner_rounded,
-                        title: 'QR Code Attendance',
-                        subtitle: 'Allow attendance via QR code scanning',
+                        title: context.tr('qrCodeAttendance'),
+                        subtitle: context.tr('allowAttendanceQr'),
                         value: _allowQr,
                         onChanged: (v) {
                           setState(() => _allowQr = v);
@@ -520,8 +550,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const Divider(color: AppTheme.glassBorder, height: 24),
                       _SwitchRow(
                         icon: Icons.edit_note_rounded,
-                        title: 'Manual Entry',
-                        subtitle: 'Allow teachers to manually mark attendance',
+                        title: context.t('Manual Entry'),
+                        subtitle: context.tr('allowTeachersManual'),
                         value: _allowManual,
                         onChanged: (v) {
                           setState(() => _allowManual = v);
@@ -536,7 +566,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ── Face Recognition ───────────────────────
                 _SectionHeader(
                   icon: Icons.face_outlined,
-                  title: 'Face Registration',
+                  title: context.tr('faceRegistration'),
                 ),
                 const SizedBox(height: 12),
                 _SettingsCard(
@@ -544,9 +574,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       _TextInputRow(
                         icon: Icons.photo_library_outlined,
-                        title: 'Minimum Face Images',
-                        subtitle:
-                            'Minimum photos required for face registration',
+                        title: context.tr('minimumFaceImages'),
+                        subtitle: context.tr('minimumPhotosRequired'),
                         controller: _minFaceController,
                         keyboardType: TextInputType.number,
                         onChanged: (_) => _markChanged(),
@@ -554,8 +583,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const Divider(color: AppTheme.glassBorder, height: 24),
                       _TextInputRow(
                         icon: Icons.photo_library_rounded,
-                        title: 'Maximum Face Images',
-                        subtitle: 'Maximum photos allowed for registration',
+                        title: context.tr('maximumFaceImages'),
+                        subtitle: context.tr('maximumPhotosAllowed'),
                         controller: _maxFaceController,
                         keyboardType: TextInputType.number,
                         onChanged: (_) => _markChanged(),
@@ -568,14 +597,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ── QR Session ────────────────────────────
                 _SectionHeader(
                   icon: Icons.qr_code_2_rounded,
-                  title: 'QR Session',
+                  title: context.tr('qrSession'),
                 ),
                 const SizedBox(height: 12),
                 _SettingsCard(
                   child: _TextInputRow(
                     icon: Icons.timer_outlined,
-                    title: 'Session Duration',
-                    subtitle: 'How many minutes a QR session stays active',
+                    title: context.tr('sessionDuration'),
+                    subtitle: context.tr('minutesActive'),
                     controller: _qrMinutesController,
                     suffix: 'min',
                     keyboardType: TextInputType.number,
@@ -587,14 +616,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ── App ────────────────────────────────────
                 _SectionHeader(
                   icon: Icons.apps_rounded,
-                  title: 'Application',
+                  title: context.tr('application'),
                 ),
                 const SizedBox(height: 12),
                 _SettingsCard(
                   child: _TextInputRow(
                     icon: Icons.label_outline_rounded,
-                    title: 'App Name',
-                    subtitle: 'Display name shown in the application',
+                    title: context.tr('appName'),
+                    subtitle: context.tr('displayNameShown'),
                     controller: _appNameController,
                     onChanged: (_) => _markChanged(),
                   ),
@@ -611,10 +640,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : const Icon(Icons.save_rounded),
-                    label: Text(_isSaving ? 'Saving...' : 'Save All Settings'),
+                    label: Text(
+                      _isSaving
+                          ? context.tr('saving')
+                          : context.tr('saveAllSettings'),
+                    ),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
@@ -626,8 +661,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: double.infinity,
                     child: TextButton(
                       onPressed: _populateFields,
-                      child: const Text(
-                        'Discard Changes',
+                      child: Text(
+                        context.tr('discardChanges'),
                         style: TextStyle(color: AppTheme.textSecondary),
                       ),
                     ),
@@ -643,8 +678,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _formatTime(int hour, int minute) {
     final period = hour >= 12 ? 'PM' : 'AM';
-    final displayHour =
-        hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
     final minuteStr = minute.toString().padLeft(2, '0');
     return '$displayHour:$minuteStr $period';
   }
@@ -661,8 +695,8 @@ class _ThemeToggleRow extends StatelessWidget {
           icon: themeProvider.isDark
               ? Icons.dark_mode_rounded
               : Icons.light_mode_rounded,
-          title: themeProvider.isDark ? 'Dark Mode' : 'Light Mode',
-          subtitle: 'Toggle between dark and light theme',
+          title: context.tr(themeProvider.isDark ? 'darkMode' : 'lightMode'),
+          subtitle: context.tr('toggleTheme'),
           value: themeProvider.isDark,
           onChanged: (v) => themeProvider.toggle(),
           activeColor: themeProvider.isDark
@@ -800,10 +834,11 @@ class _SwitchRow extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: (value
-                    ? (activeColor ?? AppTheme.successColor)
-                    : AppTheme.textMuted)
-                .withValues(alpha: 0.1),
+            color:
+                (value
+                        ? (activeColor ?? AppTheme.successColor)
+                        : AppTheme.textMuted)
+                    .withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
@@ -915,8 +950,10 @@ class _TextInputRow extends StatelessWidget {
             textAlign: TextAlign.center,
             onChanged: onChanged,
             decoration: InputDecoration(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 10,
+              ),
               suffixText: suffix,
               suffixStyle: const TextStyle(
                 fontSize: 12,

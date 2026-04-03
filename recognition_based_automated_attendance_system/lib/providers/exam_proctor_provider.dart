@@ -7,7 +7,7 @@ import '../services/api_service.dart';
 /// Provider for exam proctoring state management
 class ExamProctorProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
-  
+
   bool _isLoading = false;
   bool _isMonitoring = false;
   ExamProctorResult? _lastResult;
@@ -74,12 +74,12 @@ class ExamProctorProvider extends ChangeNotifier {
         final result = ExamProctorResult.fromJson(response.data);
         _lastResult = result;
         _scanHistory.add(result);
-        
+
         // Keep only last 100 scans in history
         if (_scanHistory.length > 100) {
           _scanHistory.removeAt(0);
         }
-        
+
         _isLoading = false;
         notifyListeners();
         return result;
@@ -121,12 +121,10 @@ class ExamProctorProvider extends ChangeNotifier {
     }
 
     final cheatingCount = _scanHistory.where((r) => r.isCheating).length;
-    final avgSuspicion = _scanHistory.fold<double>(
-          0,
-          (sum, r) => sum + r.suspicionScore,
-        ) /
+    final avgSuspicion =
+        _scanHistory.fold<double>(0, (sum, r) => sum + r.suspicionScore) /
         _scanHistory.length;
-    
+
     // Collect unique violations
     final allViolations = <String>{};
     for (final result in _scanHistory) {

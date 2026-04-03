@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../localization/localization_extensions.dart';
 import '../../models/class_model.dart';
 import '../../providers/student_management_provider.dart';
 import 'class_students_screen.dart';
@@ -23,6 +24,9 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     'Wednesday',
     'Thursday',
   ];
+
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
 
   @override
   void initState() {
@@ -49,7 +53,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: Text(classObj == null ? 'Create Class' : 'Edit Class'),
+            title: Text(t(classObj == null ? 'Create Class' : 'Edit Class')),
             content: SizedBox(
               width: 520,
               child: SingleChildScrollView(
@@ -59,18 +63,18 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                   children: [
                     TextField(
                       controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Class Name',
-                        hintText: 'e.g. CS 101 - Section A',
+                      decoration: InputDecoration(
+                        labelText: t('Class Name'),
+                        hintText: t('e.g. CS 101 - Section A'),
                         border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: subjectController,
-                      decoration: const InputDecoration(
-                        labelText: 'Subject',
-                        hintText: 'e.g. Algorithms',
+                      decoration: InputDecoration(
+                        labelText: t('Subject'),
+                        hintText: t('e.g. Algorithms'),
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -80,9 +84,9 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                         Expanded(
                           child: TextField(
                             controller: roomController,
-                            decoration: const InputDecoration(
-                              labelText: 'Room',
-                              hintText: 'e.g. Lab 3',
+                            decoration: InputDecoration(
+                              labelText: t('Room'),
+                              hintText: t('e.g. Lab 3'),
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -91,8 +95,8 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                         Expanded(
                           child: TextField(
                             controller: startController,
-                            decoration: const InputDecoration(
-                              labelText: 'Start Time',
+                            decoration: InputDecoration(
+                              labelText: t('Start Time'),
                               hintText: '09:00',
                               border: OutlineInputBorder(),
                             ),
@@ -102,8 +106,8 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                         Expanded(
                           child: TextField(
                             controller: endController,
-                            decoration: const InputDecoration(
-                              labelText: 'End Time',
+                            decoration: InputDecoration(
+                              labelText: t('End Time'),
                               hintText: '10:30',
                               border: OutlineInputBorder(),
                             ),
@@ -112,8 +116,8 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Meeting Days',
+                    Text(
+                      t('Meeting Days'),
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textPrimary,
@@ -126,7 +130,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                       children: _meetingDayOptions.map((day) {
                         final isSelected = selectedDays.contains(day);
                         return FilterChip(
-                          label: Text(day),
+                          label: Text(t(day)),
                           selected: isSelected,
                           onSelected: (selected) {
                             setDialogState(() {
@@ -147,7 +151,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                child: Text(t('Cancel')),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -186,12 +190,12 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                       content: Text(
                         success
                             ? (classObj == null
-                                  ? 'Class created successfully'
-                                  : 'Class updated successfully')
+                                  ? t('Class created successfully')
+                                  : t('Class updated successfully'))
                             : (provider.error ??
                                   (classObj == null
-                                      ? 'Failed to create class'
-                                      : 'Failed to update class')),
+                                      ? t('Failed to create class')
+                                      : t('Failed to update class'))),
                       ),
                       backgroundColor: success
                           ? AppTheme.successColor
@@ -199,7 +203,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                     ),
                   );
                 },
-                child: Text(classObj == null ? 'Create' : 'Save'),
+                child: Text(t(classObj == null ? 'Create' : 'Save')),
               ),
             ],
           );
@@ -212,14 +216,17 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Class'),
+        title: Text(t('Delete Class')),
         content: Text(
-          'Delete "${classObj.name}" and all linked students? Existing attendance history will remain.',
+          t(
+            'Delete "{name}" and all linked students? Existing attendance history will remain.',
+            params: {'name': classObj.name},
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t('Cancel')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -237,8 +244,8 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                 SnackBar(
                   content: Text(
                     success
-                        ? 'Class deleted successfully'
-                        : 'Failed to delete class',
+                        ? t('Class deleted successfully')
+                        : t('Failed to delete class'),
                   ),
                   backgroundColor: success
                       ? AppTheme.successColor
@@ -246,7 +253,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                 ),
               );
             },
-            child: const Text('Delete'),
+            child: Text(t('Delete')),
           ),
         ],
       ),
@@ -265,13 +272,13 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     if (result == null) {
       _showSnackBar(
         context.read<StudentManagementProvider>().error ??
-            'Failed to export class.',
+            t('Failed to export class.'),
         isError: true,
       );
       return;
     }
 
-    _showSnackBar('Class exported to ${result.path}');
+    _showSnackBar(t('Class exported to {path}', params: {'path': result.path}));
   }
 
   Future<void> _importClassesCsv() async {
@@ -286,7 +293,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
 
     final filePath = picked.files.single.path;
     if (filePath == null) {
-      _showSnackBar('Selected file could not be read.', isError: true);
+      _showSnackBar(t('Selected file could not be read.'), isError: true);
       return;
     }
 
@@ -302,14 +309,14 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     }
 
     if (result == null) {
-      _showSnackBar(provider.error ?? 'Class import failed.', isError: true);
+      _showSnackBar(provider.error ?? t('Class import failed.'), isError: true);
       return;
     }
 
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Import Complete'),
+        title: Text(t('Import Complete')),
         content: SizedBox(
           width: 420,
           child: Column(
@@ -318,12 +325,22 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
             children: [
               Text(result.message),
               const SizedBox(height: 12),
-              Text('Imported: ${result.successCount}'),
-              Text('Skipped: ${result.errorCount}'),
+              Text(
+                t(
+                  'Imported: {count}',
+                  params: {'count': '${result.successCount}'},
+                ),
+              ),
+              Text(
+                t(
+                  'Skipped: {count}',
+                  params: {'count': '${result.errorCount}'},
+                ),
+              ),
               if (result.errors.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                const Text(
-                  'Details',
+                Text(
+                  t('Details'),
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
@@ -340,7 +357,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(t('Close')),
           ),
         ],
       ),
@@ -373,7 +390,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Class Management'),
+        title: Text(t('Class Management')),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -399,8 +416,8 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                     color: AppTheme.textSecondary,
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'No classes found',
+                  Text(
+                    t('No classes found'),
                     style: TextStyle(color: AppTheme.textSecondary),
                   ),
                   const SizedBox(height: 16),
@@ -412,12 +429,12 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                       ElevatedButton.icon(
                         onPressed: () => _showClassDialog(),
                         icon: const Icon(Icons.add),
-                        label: const Text('Create First Class'),
+                        label: Text(t('Create First Class')),
                       ),
                       OutlinedButton.icon(
                         onPressed: _importClassesCsv,
                         icon: const Icon(Icons.upload_file_rounded),
-                        label: const Text('Import Classes'),
+                        label: Text(t('Import Classes')),
                       ),
                     ],
                   ),
@@ -468,7 +485,12 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '${classObj.studentCount} students',
+                                    t(
+                                      '{count} students',
+                                      params: {
+                                        'count': '${classObj.studentCount}',
+                                      },
+                                    ),
                                     style: const TextStyle(
                                       color: AppTheme.textSecondary,
                                     ),
@@ -481,7 +503,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                                 Icons.download_rounded,
                                 color: AppTheme.successColor,
                               ),
-                              tooltip: 'Export Class',
+                              tooltip: t('Export Class'),
                               onPressed: () => _exportClassCsv(classObj),
                             ),
                             IconButton(
@@ -489,7 +511,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                                 Icons.edit_outlined,
                                 color: AppTheme.primaryColor,
                               ),
-                              tooltip: 'Edit Class',
+                              tooltip: t('Edit Class'),
                               onPressed: () =>
                                   _showClassDialog(classObj: classObj),
                             ),
@@ -498,7 +520,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                                 Icons.delete_outline,
                                 color: AppTheme.errorColor,
                               ),
-                              tooltip: 'Delete Class',
+                              tooltip: t('Delete Class'),
                               onPressed: () => _showDeleteClassDialog(classObj),
                             ),
                           ],
@@ -529,7 +551,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
             heroTag: 'import_classes_fab',
             onPressed: _importClassesCsv,
             backgroundColor: AppTheme.successColor,
-            tooltip: 'Import Classes',
+            tooltip: t('Import Classes'),
             child: const Icon(Icons.upload_file_rounded, color: Colors.white),
           ),
           const SizedBox(width: 12),
@@ -537,7 +559,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
             heroTag: 'add_class_fab',
             onPressed: () => _showClassDialog(),
             backgroundColor: AppTheme.primaryColor,
-            tooltip: 'Add Class',
+            tooltip: t('Add Class'),
             child: const Icon(Icons.add, color: Colors.white),
           ),
         ],

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_textfield.dart';
@@ -36,7 +38,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _onChanged() {
     final user = context.read<AuthProvider>().user;
     if (user == null) return;
-    final changed = _nameController.text != (user.fullName) ||
+    final changed =
+        _nameController.text != (user.fullName) ||
         _phoneController.text != (user.phone ?? '') ||
         _departmentController.text != (user.department ?? '');
     if (changed != _hasChanges) {
@@ -62,7 +65,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final auth = context.read<AuthProvider>();
     final success = await auth.updateProfile(
       fullName: _nameController.text.trim(),
-      phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+      phone: _phoneController.text.trim().isEmpty
+          ? null
+          : _phoneController.text.trim(),
       department: _departmentController.text.trim().isEmpty
           ? null
           : _departmentController.text.trim(),
@@ -72,8 +77,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated successfully'),
+        SnackBar(
+          content: Text(context.t('Profile updated successfully')),
           backgroundColor: AppTheme.successColor,
         ),
       );
@@ -81,7 +86,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(auth.error ?? 'Failed to update profile'),
+          content: Text(auth.error ?? context.t('Failed to update profile')),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -91,16 +96,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final t = context.t;
+    final language = context.language;
+    final phoneOptionalHint =
+        '${t('Enter your phone number')} (${t('Optional')})';
+    final departmentOptionalHint =
+        '${t('Enter your department')} (${t('Optional')})';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: Text(t('Edit Profile')),
         actions: [
           if (_hasChanges)
             TextButton(
               onPressed: _save,
-              child: const Text(
-                'Save',
+              child: Text(
+                t('Save'),
                 style: TextStyle(
                   color: AppTheme.primaryColor,
                   fontWeight: FontWeight.w600,
@@ -113,7 +124,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         builder: (context, auth, _) {
           final user = auth.user;
           if (user == null) {
-            return const Center(child: Text('Not logged in'));
+            return Center(child: Text(t('Not logged in')));
           }
 
           return SingleChildScrollView(
@@ -159,20 +170,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   const SizedBox(height: 32),
 
                   // Form Fields
-                  _SectionLabel(label: 'Personal Information'),
+                  _SectionLabel(label: t('Personal Information')),
                   const SizedBox(height: 16),
 
                   CustomTextField(
                     controller: _nameController,
-                    label: 'Full Name',
-                    hint: 'Enter your full name',
+                    label: t('Full Name'),
+                    hint: t('Enter your full name'),
                     prefixIcon: Icons.person_outline,
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
-                        return 'Name cannot be empty';
+                        return t('Name cannot be empty');
                       }
                       if (val.trim().length < 2) {
-                        return 'Name must be at least 2 characters';
+                        return t('Name must be at least 2 characters');
                       }
                       return null;
                     },
@@ -181,14 +192,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                   CustomTextField(
                     controller: _phoneController,
-                    label: 'Phone Number',
-                    hint: 'Enter your phone number (optional)',
+                    label: t('Phone Number'),
+                    hint: phoneOptionalHint,
                     prefixIcon: Icons.phone_outlined,
                     keyboardType: TextInputType.phone,
                     validator: (val) {
                       if (val != null && val.isNotEmpty) {
                         if (val.length < 7) {
-                          return 'Please enter a valid phone number';
+                          return t('Please enter a valid phone number');
                         }
                       }
                       return null;
@@ -198,36 +209,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                   CustomTextField(
                     controller: _departmentController,
-                    label: 'Department / Class',
-                    hint: 'e.g. Computer Science (optional)',
+                    label: t('Department'),
+                    hint: departmentOptionalHint,
                     prefixIcon: Icons.business_outlined,
                   ),
                   const SizedBox(height: 32),
 
                   // Read-only info
-                  _SectionLabel(label: 'Account Info (Read-only)'),
+                  _SectionLabel(label: t('Account Info (Read-only)')),
                   const SizedBox(height: 16),
 
                   _ReadOnlyField(
-                    label: 'Email',
+                    label: t('Email'),
                     value: user.email,
                     icon: Icons.email_outlined,
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),
                   _ReadOnlyField(
-                    label: 'Role',
-                    value: user.role.toUpperCase(),
+                    label: t('Role'),
+                    value: user.role == 'admin'
+                        ? language.tr('admin')
+                        : language.tr('user'),
                     icon: Icons.badge_outlined,
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),
                   _ReadOnlyField(
-                    label: 'Account Status',
-                    value: user.isActive ? 'Active' : 'Disabled',
+                    label: t('Account Status'),
+                    value: user.isActive ? t('Active') : t('Disabled'),
                     icon: Icons.circle,
-                    valueColor:
-                        user.isActive ? AppTheme.successColor : AppTheme.errorColor,
+                    valueColor: user.isActive
+                        ? AppTheme.successColor
+                        : AppTheme.errorColor,
                     isDark: isDark,
                   ),
                   const SizedBox(height: 40),
@@ -236,7 +250,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) {
                       return CustomButton(
-                        text: 'Save Changes',
+                        text: t('Save Changes'),
                         isLoading: auth.isLoading,
                         onPressed: _hasChanges ? _save : null,
                         icon: Icons.check_rounded,
@@ -253,8 +267,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     Center(
                       child: TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text(
-                          'Discard Changes',
+                        child: Text(
+                          t('Discard Changes'),
                           style: TextStyle(color: AppTheme.textSecondary),
                         ),
                       ),
@@ -316,8 +330,11 @@ class _ReadOnlyField extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 18,
-              color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted),
+          Icon(
+            icon,
+            size: 18,
+            color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -327,7 +344,9 @@ class _ReadOnlyField extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+                    color: isDark
+                        ? AppTheme.textMuted
+                        : AppTheme.lightTextMuted,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -336,16 +355,22 @@ class _ReadOnlyField extends StatelessWidget {
                   value,
                   style: TextStyle(
                     fontSize: 14,
-                    color: valueColor ??
-                        (isDark ? AppTheme.textPrimary : AppTheme.lightTextPrimary),
+                    color:
+                        valueColor ??
+                        (isDark
+                            ? AppTheme.textPrimary
+                            : AppTheme.lightTextPrimary),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
-          Icon(Icons.lock_outline, size: 14,
-              color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted),
+          Icon(
+            Icons.lock_outline,
+            size: 14,
+            color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+          ),
         ],
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../localization/localization_extensions.dart';
 import '../../providers/attendance_provider.dart';
 import '../../models/attendance_model.dart';
 
@@ -17,6 +18,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
   String _statusFilter = 'all';
+
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
 
   @override
   void initState() {
@@ -76,7 +80,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('All Attendance'),
+        title: Text(t('All Attendance')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -90,7 +94,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
             IconButton(icon: const Icon(Icons.clear), onPressed: _clearFilters),
           IconButton(
             icon: const Icon(Icons.download_rounded),
-            tooltip: 'Export CSV',
+            tooltip: t('Export CSV'),
             onPressed: () => _exportCSV(context),
           ),
           IconButton(
@@ -185,8 +189,8 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                           color: Colors.grey.shade300,
                         ),
                         const SizedBox(height: 16),
-                        const Text(
-                          'No attendance records found',
+                        Text(
+                          t('No attendance records found'),
                           style: TextStyle(
                             fontSize: 16,
                             color: AppTheme.textSecondary,
@@ -195,7 +199,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                         if (_startDate != null || _statusFilter != 'all')
                           TextButton(
                             onPressed: _clearFilters,
-                            child: const Text('Clear filters'),
+                            child: Text(t('Clear filters')),
                           ),
                       ],
                     ),
@@ -226,7 +230,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
   Widget _buildFilterChip(String label, String value) {
     final isSelected = _statusFilter == value;
     return FilterChip(
-      label: Text(label),
+      label: Text(t(label)),
       selected: isSelected,
       onSelected: (selected) {
         setState(() {
@@ -246,7 +250,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     final provider = context.read<AttendanceProvider>();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Preparing CSV report...')));
+    ).showSnackBar(SnackBar(content: Text(t('Preparing CSV report...'))));
     final filePath = await provider.exportAttendance(
       start: _startDate,
       end: _endDate,
@@ -256,8 +260,11 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         SnackBar(
           content: Text(
             filePath == null
-                ? 'Failed to export attendance report'
-                : 'Attendance report saved to $filePath',
+                ? t('Failed to export attendance report')
+                : t(
+                    'Attendance report saved to {path}',
+                    params: {'path': filePath},
+                  ),
           ),
           backgroundColor: filePath == null
               ? AppTheme.errorColor
@@ -271,12 +278,12 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Update Status'),
+        title: Text(t('Update Status')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text('Present'),
+              title: Text(t('Present')),
               leading: const Icon(
                 Icons.check_circle,
                 color: AppTheme.successColor,
@@ -284,7 +291,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
               onTap: () => _updateStatus(context, attendance, 'present'),
             ),
             ListTile(
-              title: const Text('Late'),
+              title: Text(t('Late')),
               leading: const Icon(
                 Icons.access_time,
                 color: AppTheme.warningColor,
@@ -292,7 +299,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
               onTap: () => _updateStatus(context, attendance, 'late'),
             ),
             ListTile(
-              title: const Text('Absent'),
+              title: Text(t('Absent')),
               leading: const Icon(Icons.cancel, color: AppTheme.errorColor),
               onTap: () => _updateStatus(context, attendance, 'absent'),
             ),
@@ -319,7 +326,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            success ? 'Status updated successfully' : 'Failed to update status',
+            success
+                ? t('Status updated successfully')
+                : t('Failed to update status'),
           ),
           backgroundColor: success
               ? AppTheme.successColor
@@ -438,7 +447,7 @@ class _AttendanceCard extends StatelessWidget {
                                 ? DateFormat(
                                     'hh:mm a',
                                   ).format(attendance.checkInTime!)
-                                : 'N/A',
+                                : context.t('N/A'),
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -486,7 +495,7 @@ class _AttendanceCard extends StatelessWidget {
                   Icon(_statusIcon, size: 14, color: _statusColor),
                   const SizedBox(width: 4),
                   Text(
-                    attendance.statusDisplay,
+                    context.t(attendance.statusDisplay),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,

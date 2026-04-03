@@ -6,12 +6,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../config/app_theme.dart';
 import '../config/api_config.dart';
+import '../localization/localization_extensions.dart';
 import '../services/api_service.dart';
 import '../utils/camera_selector.dart';
 import '../widgets/custom_button.dart';
 
 /// Batch Student Registration Screen
-/// Register multiple students with 5 images each
+/// Register multiple students with 2 images each
 class BatchStudentRegistrationScreen extends StatefulWidget {
   final int? initialClassId;
   final String? initialClassName;
@@ -29,7 +30,12 @@ class BatchStudentRegistrationScreen extends StatefulWidget {
 
 class _BatchStudentRegistrationScreenState
     extends State<BatchStudentRegistrationScreen> {
+  static const int _requiredImages = 2;
+
   final ApiService _api = ApiService();
+
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
 
   // Step 1: Class Setup
   final _classNameController = TextEditingController();
@@ -62,7 +68,8 @@ class _BatchStudentRegistrationScreenState
     if (widget.initialClassId != null) {
       _classId = widget.initialClassId;
       _className = widget.initialClassName ?? 'Class';
-      _totalStudents = 999; // Allow unlimited students when adding to existing class
+      _totalStudents =
+          999; // Allow unlimited students when adding to existing class
       _currentStep = 1;
       _initCamera();
     }
@@ -72,7 +79,7 @@ class _BatchStudentRegistrationScreenState
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        _showError('No cameras found');
+        _showError(t('No cameras found'));
         return;
       }
 
@@ -98,7 +105,9 @@ class _BatchStudentRegistrationScreenState
         });
       }
     } catch (e) {
-      _showError('Failed to initialize camera: $e');
+      _showError(
+        t('Failed to initialize camera: {error}', params: {'error': '$e'}),
+      );
     }
   }
 
@@ -126,12 +135,12 @@ class _BatchStudentRegistrationScreenState
     final studentCount = int.tryParse(_studentCountController.text.trim()) ?? 0;
 
     if (className.isEmpty) {
-      _showError('Please enter a class name');
+      _showError(t('Please enter a class name'));
       return;
     }
 
     if (studentCount <= 0 || studentCount > 200) {
-      _showError('Please enter a valid number of students (1-200)');
+      _showError(t('Please enter a valid number of students (1-200)'));
       return;
     }
 
@@ -162,7 +171,10 @@ class _BatchStudentRegistrationScreenState
         _isSubmitting = false;
       });
       _showError(
-        'Failed to create class: ${e.toString().replaceFirst('Exception: ', '')}',
+        t(
+          'Failed to create class: {error}',
+          params: {'error': e.toString().replaceFirst('Exception: ', '')},
+        ),
       );
     }
   }
@@ -170,8 +182,8 @@ class _BatchStudentRegistrationScreenState
   Future<void> _captureImage() async {
     if (_cameraController == null || !_isCameraReady || _isCapturing) return;
 
-    if (_capturedImages.length >= 5) {
-      _showError('Already captured 5 images for this student');
+    if (_capturedImages.length >= _requiredImages) {
+      _showError(t('Already captured the required images for this student'));
       return;
     }
 
@@ -197,19 +209,31 @@ class _BatchStudentRegistrationScreenState
           _isCapturing = false;
         });
 
-        if (_capturedImages.length == 5) {
-          _showSuccess('All 5 images captured! Enter name and click Submit.');
+        if (_capturedImages.length == _requiredImages) {
+          _showSuccess(
+            t('All required images captured! Enter name and click Submit.'),
+          );
         } else {
-          _showSuccess('Image ${_capturedImages.length}/5 captured');
+          _showSuccess(
+            t(
+              'Image {current}/{total} captured',
+              params: {
+                'current': '${_capturedImages.length}',
+                'total': '$_requiredImages',
+              },
+            ),
+          );
         }
       } else {
-        throw Exception('Failed to save image');
+        throw Exception(t('Failed to save image'));
       }
     } catch (e) {
       setState(() {
         _isCapturing = false;
       });
-      _showError('Failed to capture image: $e');
+      _showError(
+        t('Failed to capture image: {error}', params: {'error': '$e'}),
+      );
     }
   }
 
@@ -223,17 +247,17 @@ class _BatchStudentRegistrationScreenState
     final name = _currentStudentNameController.text.trim();
 
     if (name.isEmpty) {
-      _showError('Please enter student name');
+      _showError(t('Please enter student name'));
       return;
     }
 
-    if (_capturedImages.length < 5) {
-      _showError('Please capture all 5 images before submitting');
+    if (_capturedImages.length < _requiredImages) {
+      _showError(t('Please capture all required images before submitting'));
       return;
     }
 
     if (_classId == null) {
-      _showError('Class not created. Please restart registration.');
+      _showError(t('Class not created. Please restart registration.'));
       return;
     }
 
@@ -289,7 +313,13 @@ class _BatchStudentRegistrationScreenState
           _capturedImages = [];
         });
         _showSuccess(
-          'Student registered! Moving to next student (${_currentStudentIndex + 1}/$_totalStudents)',
+          t(
+            'Student registered! Moving to next student ({current}/{total})',
+            params: {
+              'current': '${_currentStudentIndex + 1}',
+              'total': '$_totalStudents',
+            },
+          ),
         );
       } else {
         // All done
@@ -301,7 +331,10 @@ class _BatchStudentRegistrationScreenState
         _isSubmitting = false;
       });
       _showError(
-        'Failed to register student: ${e.toString().replaceFirst('Exception: ', '')}',
+        t(
+          'Failed to register student: {error}',
+          params: {'error': e.toString().replaceFirst('Exception: ', '')},
+        ),
       );
     }
   }
@@ -311,7 +344,7 @@ class _BatchStudentRegistrationScreenState
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Registration Complete!'),
+        title: Text(t('Registration Complete!')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -322,12 +355,23 @@ class _BatchStudentRegistrationScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              'Successfully registered ${_registeredStudents.length} students in $_className',
+              t(
+                'Successfully registered {count} students in {className}',
+                params: {
+                  'count': '${_registeredStudents.length}',
+                  'className': _className,
+                },
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Total images captured: ${_registeredStudents.length * 5}',
+              t(
+                'Total images captured: {count}',
+                params: {
+                  'count': '${_registeredStudents.length * _requiredImages}',
+                },
+              ),
               style: const TextStyle(color: AppTheme.textSecondary),
             ),
           ],
@@ -338,7 +382,7 @@ class _BatchStudentRegistrationScreenState
               Navigator.pop(context);
               Navigator.pop(context);
             },
-            child: const Text('Done'),
+            child: Text(t('Done')),
           ),
         ],
       ),
@@ -349,9 +393,12 @@ class _BatchStudentRegistrationScreenState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Student Registered!'),
+        title: Text(t('Student Registered!')),
         content: Text(
-          'Successfully registered. Add another student to $_className?',
+          t(
+            'Successfully registered. Add another student to {className}?',
+            params: {'className': _className},
+          ),
         ),
         actions: [
           TextButton(
@@ -359,11 +406,11 @@ class _BatchStudentRegistrationScreenState
               Navigator.pop(context); // close dialog
               Navigator.pop(context); // go back to class students
             },
-            child: const Text('Done'),
+            child: Text(t('Done')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Add Another'),
+            child: Text(t('Add Another')),
           ),
         ],
       ),
@@ -379,14 +426,23 @@ class _BatchStudentRegistrationScreenState
     super.dispose();
   }
 
-  Widget _buildTip(String emoji, String text) {
+  Widget _buildTip(
+    String emoji,
+    String text, {
+    Map<String, String> params = const {},
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Text(emoji, style: const TextStyle(fontSize: 16)),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
+          Expanded(
+            child: Text(
+              context.t(text, params: params),
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
         ],
       ),
     );
@@ -396,16 +452,18 @@ class _BatchStudentRegistrationScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentStep == 0
-            ? 'Create Class'
-            : widget.initialClassId != null
-                ? 'Add Student'
-                : 'Register Students'),
+        title: Text(
+          _currentStep == 0
+              ? t('Create Class')
+              : widget.initialClassId != null
+              ? t('Add Student')
+              : t('Register Students'),
+        ),
         actions: [
           if (_currentStep == 1 && _isCameraReady)
             IconButton(
               icon: const Icon(Icons.rotate_right),
-              tooltip: 'Rotate Camera',
+              tooltip: t('Rotate Camera'),
               onPressed: () {
                 setState(() {
                   _previewQuarterTurns = (_previewQuarterTurns + 1) % 4;
@@ -420,14 +478,12 @@ class _BatchStudentRegistrationScreenState
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('Cancel Registration?'),
-                      content: const Text(
-                        'Progress will be lost. Are you sure?',
-                      ),
+                      title: Text(t('Cancel Registration?')),
+                      content: Text(t('Progress will be lost. Are you sure?')),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
-                          child: const Text('No'),
+                          child: Text(t('No')),
                         ),
                         ElevatedButton(
                           onPressed: () {
@@ -437,7 +493,7 @@ class _BatchStudentRegistrationScreenState
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.errorColor,
                           ),
-                          child: const Text('Yes, Cancel'),
+                          child: Text(t('Yes, Cancel')),
                         ),
                       ],
                     ),
@@ -456,8 +512,8 @@ class _BatchStudentRegistrationScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Class Setup',
+          Text(
+            t('Class Setup'),
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -465,8 +521,10 @@ class _BatchStudentRegistrationScreenState
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Create a new class and specify the number of students to register',
+          Text(
+            t(
+              'Create a new class and specify the number of students to register',
+            ),
             style: TextStyle(fontSize: 16, color: AppTheme.textSecondary),
           ),
           const SizedBox(height: 32),
@@ -474,9 +532,9 @@ class _BatchStudentRegistrationScreenState
           // Class Name
           TextField(
             controller: _classNameController,
-            decoration: const InputDecoration(
-              labelText: 'Class Name',
-              hintText: 'e.g., Class 10A, Computer Science 101',
+            decoration: InputDecoration(
+              labelText: t('Class Name'),
+              hintText: t('e.g., Class 10A, Computer Science 101'),
               prefixIcon: Icon(Icons.class_),
               border: OutlineInputBorder(),
             ),
@@ -487,12 +545,12 @@ class _BatchStudentRegistrationScreenState
           TextField(
             controller: _studentCountController,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Number of Students',
-              hintText: 'e.g., 30, 50, 100',
+            decoration: InputDecoration(
+              labelText: t('Number of Students'),
+              hintText: t('e.g., 30, 50, 100'),
               prefixIcon: Icon(Icons.people),
               border: OutlineInputBorder(),
-              helperText: 'Maximum 200 students per batch',
+              helperText: t('Maximum 200 students per batch'),
             ),
           ),
           const SizedBox(height: 40),
@@ -526,7 +584,7 @@ class _BatchStudentRegistrationScreenState
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Class: $_className',
+                    t('Class: {name}', params: {'name': _className}),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -534,8 +592,17 @@ class _BatchStudentRegistrationScreenState
                   ),
                   Text(
                     widget.initialClassId != null
-                        ? 'Students added: ${_registeredStudents.length}'
-                        : 'Student ${_currentStudentIndex + 1} of $_totalStudents',
+                        ? t(
+                            'Students added: {count}',
+                            params: {'count': '${_registeredStudents.length}'},
+                          )
+                        : t(
+                            'Student {current} of {total}',
+                            params: {
+                              'current': '${_currentStudentIndex + 1}',
+                              'total': '$_totalStudents',
+                            },
+                          ),
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       color: AppTheme.primaryColor,
@@ -569,9 +636,9 @@ class _BatchStudentRegistrationScreenState
                     padding: const EdgeInsets.all(16),
                     child: TextField(
                       controller: _currentStudentNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Student Name',
-                        hintText: 'Enter full name',
+                      decoration: InputDecoration(
+                        labelText: t('Student Name'),
+                        hintText: t('Enter full name'),
                         prefixIcon: Icon(Icons.person),
                         border: OutlineInputBorder(),
                       ),
@@ -593,7 +660,7 @@ class _BatchStudentRegistrationScreenState
                             Icon(Icons.lightbulb, color: Colors.blue.shade700),
                             const SizedBox(width: 8),
                             Text(
-                              'Photo Capture Tips',
+                              t('Photo Capture Tips'),
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
@@ -613,7 +680,8 @@ class _BatchStudentRegistrationScreenState
                         ),
                         _buildTip(
                           '📸',
-                          'Capture 5 photos from slightly different angles',
+                          'Capture {count} photos from slightly different angles',
+                          params: {'count': '$_requiredImages'},
                         ),
                       ],
                     ),
@@ -652,11 +720,19 @@ class _BatchStudentRegistrationScreenState
                 CustomButton(
                   text: _isCapturing
                       ? 'Capturing...'
-                      : 'Capture Image (${_capturedImages.length}/5)',
+                      : t(
+                          'Capture Image ({current}/{total})',
+                          params: {
+                            'current': '${_capturedImages.length}',
+                            'total': '$_requiredImages',
+                          },
+                        ),
                   isLoading: _isCapturing,
-                  onPressed: _capturedImages.length < 5 ? _captureImage : null,
+                  onPressed: _capturedImages.length < _requiredImages
+                      ? _captureImage
+                      : null,
                   icon: Icons.camera_alt,
-                  backgroundColor: _capturedImages.length < 5
+                  backgroundColor: _capturedImages.length < _requiredImages
                       ? AppTheme.primaryColor
                       : Colors.grey,
                 ),
@@ -664,8 +740,8 @@ class _BatchStudentRegistrationScreenState
 
                 // Captured Images Preview
                 if (_capturedImages.isNotEmpty) ...[
-                  const Text(
-                    'Captured Images',
+                  Text(
+                    t('Captured Images'),
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
@@ -725,7 +801,7 @@ class _BatchStudentRegistrationScreenState
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
-                                  '${index + 1}/5',
+                                  '${index + 1}/$_requiredImages',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,
@@ -748,13 +824,15 @@ class _BatchStudentRegistrationScreenState
                       ? 'Submit & Next Student'
                       : 'Submit & Finish',
                   isLoading: _isSubmitting,
-                  onPressed: _capturedImages.length == 5 && !_isSubmitting
+                  onPressed:
+                      _capturedImages.length == _requiredImages &&
+                          !_isSubmitting
                       ? _submitStudent
                       : null,
                   icon: _currentStudentIndex < _totalStudents - 1
                       ? Icons.arrow_forward
                       : Icons.check_circle,
-                  backgroundColor: _capturedImages.length == 5
+                  backgroundColor: _capturedImages.length == _requiredImages
                       ? AppTheme.successColor
                       : Colors.grey,
                 ),

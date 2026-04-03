@@ -83,7 +83,8 @@ class ApiConfig {
 
   // ─── Notifications ───────────────────────────────────────────────────────────
   static const String notifications = '/api/notifications';
-  static const String notificationsUnreadCount = '/api/notifications/unread-count';
+  static const String notificationsUnreadCount =
+      '/api/notifications/unread-count';
   static const String notificationsMarkRead = '/api/notifications/mark-read';
   static String notificationById(int id) => '/api/notifications/$id';
 
@@ -91,7 +92,8 @@ class ApiConfig {
   static const String classes = '/api/classes';
   static String classById(int id) => '/api/classes/$id';
   static String classStudents(int classId) => '/api/classes/$classId/students';
-  static String classAttendance(int classId) => '/api/classes/$classId/attendance';
+  static String classAttendance(int classId) =>
+      '/api/classes/$classId/attendance';
   static String deleteStudent(int classId, int studentId) =>
       '/api/classes/$classId/students/$studentId';
   static const String registerStudent = '/api/students/register';
@@ -101,7 +103,8 @@ class ApiConfig {
   static const String createQrSession = '/api/qr/create-session';
   static String activeQrSession(int classId) => '/api/qr/session/$classId';
   static String scanQr(String token) => '/api/qr/scan/$token';
-  static String deactivateQrSession(int sessionId) => '/api/qr/session/$sessionId';
+  static String deactivateQrSession(int sessionId) =>
+      '/api/qr/session/$sessionId';
 
   // ─── Exam Proctoring ─────────────────────────────────────────────────────────
   static const String examProctor = '/api/exam-proctor';

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../localization/localization_extensions.dart';
 import '../../models/class_model.dart';
 import '../../providers/student_management_provider.dart';
 import '../batch_student_registration_screen.dart';
@@ -21,6 +22,9 @@ class ClassStudentsScreen extends StatefulWidget {
 }
 
 class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
+
   @override
   void initState() {
     super.initState();
@@ -36,18 +40,18 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit Student'),
+        title: Text(t('Edit Student')),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Student Name',
+          decoration: InputDecoration(
+            labelText: t('Student Name'),
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t('Cancel')),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -70,8 +74,8 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                 SnackBar(
                   content: Text(
                     success
-                        ? 'Student updated successfully'
-                        : 'Failed to update student',
+                        ? t('Student updated successfully')
+                        : t('Failed to update student'),
                   ),
                   backgroundColor: success
                       ? AppTheme.successColor
@@ -79,7 +83,7 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                 ),
               );
             },
-            child: const Text('Save'),
+            child: Text(t('Save')),
           ),
         ],
       ),
@@ -90,14 +94,17 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Student'),
+        title: Text(t('Delete Student')),
         content: Text(
-          'Are you sure you want to delete "${student.name}" from this class? This action cannot be undone.',
+          t(
+            'Are you sure you want to delete "{name}" from this class? This action cannot be undone.',
+            params: {'name': student.name},
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t('Cancel')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -113,8 +120,8 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                   SnackBar(
                     content: Text(
                       success
-                          ? 'Student deleted successfully'
-                          : 'Failed to delete student',
+                          ? t('Student deleted successfully')
+                          : t('Failed to delete student'),
                     ),
                     backgroundColor: success
                         ? AppTheme.successColor
@@ -123,7 +130,10 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                 );
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            child: Text(
+              t('Delete'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -159,7 +169,7 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
 
     final filePath = picked.files.single.path;
     if (filePath == null) {
-      _showSnackBar('Selected file could not be read.', isError: true);
+      _showSnackBar(t('Selected file could not be read.'), isError: true);
       return;
     }
 
@@ -178,14 +188,17 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
     }
 
     if (result == null) {
-      _showSnackBar(provider.error ?? 'Student import failed.', isError: true);
+      _showSnackBar(
+        provider.error ?? t('Student import failed.'),
+        isError: true,
+      );
       return;
     }
 
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Import Complete'),
+        title: Text(t('Import Complete')),
         content: SizedBox(
           width: 420,
           child: Column(
@@ -194,12 +207,22 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
             children: [
               Text(result.message),
               const SizedBox(height: 12),
-              Text('Imported: ${result.successCount}'),
-              Text('Skipped: ${result.errorCount}'),
+              Text(
+                t(
+                  'Imported: {count}',
+                  params: {'count': '${result.successCount}'},
+                ),
+              ),
+              Text(
+                t(
+                  'Skipped: {count}',
+                  params: {'count': '${result.errorCount}'},
+                ),
+              ),
               if (result.errors.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                const Text(
-                  'Details',
+                Text(
+                  t('Details'),
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
@@ -216,7 +239,7 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(t('Close')),
           ),
         ],
       ),
@@ -234,13 +257,15 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
     if (result == null) {
       _showSnackBar(
         context.read<StudentManagementProvider>().error ??
-            'Failed to export students.',
+            t('Failed to export students.'),
         isError: true,
       );
       return;
     }
 
-    _showSnackBar('Student list saved to ${result.path}');
+    _showSnackBar(
+      t('Student list saved to {path}', params: {'path': result.path}),
+    );
   }
 
   Future<void> _exportAttendanceCsv() async {
@@ -254,13 +279,15 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
     if (result == null) {
       _showSnackBar(
         context.read<StudentManagementProvider>().error ??
-            'Failed to export class attendance.',
+            t('Failed to export class attendance.'),
         isError: true,
       );
       return;
     }
 
-    _showSnackBar('Class attendance saved to ${result.path}');
+    _showSnackBar(
+      t('Class attendance saved to {path}', params: {'path': result.path}),
+    );
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -276,20 +303,22 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.classObj.name} Students'),
+        title: Text(
+          t('{name} Students', params: {'name': widget.classObj.name}),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_alt_1_rounded),
-            tooltip: 'Add Student',
+            tooltip: t('Add Student'),
             onPressed: _navigateToAddStudent,
           ),
           IconButton(
             icon: const Icon(Icons.upload_file_rounded),
-            tooltip: 'Import Students CSV',
+            tooltip: t('Import Students CSV'),
             onPressed: _importStudentsCsv,
           ),
           PopupMenuButton<_ClassExportAction>(
-            tooltip: 'Export',
+            tooltip: t('Export'),
             icon: const Icon(Icons.download_rounded),
             onSelected: (value) {
               if (value == _ClassExportAction.students) {
@@ -298,20 +327,20 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                 _exportAttendanceCsv();
               }
             },
-            itemBuilder: (context) => const [
+            itemBuilder: (context) => [
               PopupMenuItem(
                 value: _ClassExportAction.students,
-                child: Text('Export Student List'),
+                child: Text(t('Export Student List')),
               ),
               PopupMenuItem(
                 value: _ClassExportAction.attendance,
-                child: Text('Export Attendance CSV'),
+                child: Text(t('Export Attendance CSV')),
               ),
             ],
           ),
           IconButton(
             icon: const Icon(Icons.history),
-            tooltip: 'View Class Attendance',
+            tooltip: t('View Class Attendance'),
             onPressed: () {
               Navigator.push(
                 context,
@@ -331,7 +360,11 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
           }
 
           if (provider.error != null) {
-            return Center(child: Text('Error: ${provider.error}'));
+            return Center(
+              child: Text(
+                t('Error: {message}', params: {'message': provider.error!}),
+              ),
+            );
           }
 
           if (provider.students.isEmpty) {
@@ -345,8 +378,8 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                     color: AppTheme.textSecondary,
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'No students registered in this class',
+                  Text(
+                    t('No students registered in this class'),
                     style: TextStyle(color: AppTheme.textSecondary),
                   ),
                   const SizedBox(height: 16),
@@ -358,12 +391,12 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                       ElevatedButton.icon(
                         onPressed: _navigateToAddStudent,
                         icon: const Icon(Icons.person_add),
-                        label: const Text('Add First Student'),
+                        label: Text(t('Add First Student')),
                       ),
                       OutlinedButton.icon(
                         onPressed: _importStudentsCsv,
                         icon: const Icon(Icons.upload_file_rounded),
-                        label: const Text('Import CSV'),
+                        label: Text(t('Import CSV')),
                       ),
                     ],
                   ),
@@ -398,8 +431,8 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                   ),
                   subtitle: Text(
                     student.hasRegisteredFace
-                        ? 'Face Registered'
-                        : 'No Face Data',
+                        ? t('Face Registered')
+                        : t('No Face Data'),
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -418,7 +451,7 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                           Icons.edit_outlined,
                           color: AppTheme.primaryColor,
                         ),
-                        tooltip: 'Edit Student',
+                        tooltip: t('Edit Student'),
                         onPressed: () => _showEditStudentDialog(student),
                       ),
                       IconButton(
@@ -426,7 +459,7 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                           Icons.delete_outline,
                           color: AppTheme.errorColor,
                         ),
-                        tooltip: 'Delete Student',
+                        tooltip: t('Delete Student'),
                         onPressed: () => _showDeleteStudentDialog(student),
                       ),
                     ],
@@ -440,7 +473,7 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: _navigateToAddStudent,
         backgroundColor: AppTheme.primaryColor,
-        tooltip: 'Add Student',
+        tooltip: t('Add Student'),
         child: const Icon(Icons.person_add, color: Colors.white),
       ),
     );

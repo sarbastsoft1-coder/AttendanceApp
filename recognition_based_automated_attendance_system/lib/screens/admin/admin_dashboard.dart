@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../localization/localization_extensions.dart';
 import '../../providers/attendance_provider.dart';
 import '../../widgets/stats_card.dart';
 
@@ -14,6 +15,9 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
+
   @override
   void initState() {
     super.initState();
@@ -32,7 +36,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Dashboard'),
+        title: Text(t('Admin Dashboard')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -128,8 +132,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   color: AppTheme.primaryColor,
                                 ),
                               ),
-                              const Text(
-                                'Active Users',
+                              Text(
+                                t('Active Users'),
                                 style: TextStyle(color: AppTheme.textSecondary),
                               ),
                             ],
@@ -151,8 +155,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   color: AppTheme.successColor,
                                 ),
                               ),
-                              const Text(
-                                'Faces Registered',
+                              Text(
+                                t('Faces Registered'),
                                 style: TextStyle(color: AppTheme.textSecondary),
                               ),
                             ],
@@ -164,8 +168,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   const SizedBox(height: 24),
 
                   // Quick Actions
-                  const Text(
-                    'Quick Actions',
+                  Text(
+                    t('Quick Actions'),
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -213,8 +217,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        "Today's Attendance",
+                      Text(
+                        t("Today's Attendance"),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -225,7 +229,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         onPressed: () {
                           Navigator.pushNamed(context, '/admin/attendance');
                         },
-                        child: const Text('View All'),
+                        child: Text(t('View All')),
                       ),
                     ],
                   ),
@@ -247,8 +251,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             color: Colors.grey.shade400,
                           ),
                           const SizedBox(height: 12),
-                          const Text(
-                            'No attendance records today',
+                          Text(
+                            t('No attendance records today'),
                             style: TextStyle(color: AppTheme.textSecondary),
                           ),
                         ],
@@ -305,7 +309,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                         ? DateFormat(
                                             'hh:mm a',
                                           ).format(record.checkInTime!)
-                                        : 'N/A',
+                                        : t('N/A'),
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey.shade500,
@@ -330,7 +334,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                record.statusDisplay,
+                                t(record.statusDisplay),
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -385,7 +389,7 @@ class _QuickActionButton extends StatelessWidget {
             Icon(icon, color: AppTheme.primaryColor, size: 20),
             const SizedBox(width: 8),
             Text(
-              label,
+              context.t(label),
               style: const TextStyle(
                 color: AppTheme.primaryColor,
                 fontWeight: FontWeight.w600,

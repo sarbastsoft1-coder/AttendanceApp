@@ -7,11 +7,12 @@ import '../config/app_theme.dart';
 /// bottom navigation (mobile/tablet).
 class ResponsiveLayout extends StatelessWidget {
   final Widget child;
-  
+
   const ResponsiveLayout({super.key, required this.child});
 
   static bool isDesktop(BuildContext context) {
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    if (!kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       return true;
     }
     return MediaQuery.of(context).size.width >= 1024;
@@ -58,10 +59,7 @@ class DesktopContentContainer extends StatelessWidget {
     return Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Padding(
-          padding: padding,
-          child: child,
-        ),
+        child: Padding(padding: padding, child: child),
       ),
     );
   }
@@ -98,9 +96,15 @@ class _GlassCardState extends State<GlassCard> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: widget.hoverEffect ? (_) => setState(() => _isHovered = true) : null,
-      onExit: widget.hoverEffect ? (_) => setState(() => _isHovered = false) : null,
-      cursor: widget.onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: widget.hoverEffect
+          ? (_) => setState(() => _isHovered = true)
+          : null,
+      onExit: widget.hoverEffect
+          ? (_) => setState(() => _isHovered = false)
+          : null,
+      cursor: widget.onTap != null
+          ? SystemMouseCursors.click
+          : MouseCursor.defer,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -108,7 +112,9 @@ class _GlassCardState extends State<GlassCard> {
           padding: widget.padding ?? const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: _isHovered
-                ? (widget.backgroundColor ?? AppTheme.glassBg).withValues(alpha: 0.2)
+                ? (widget.backgroundColor ?? AppTheme.glassBg).withValues(
+                    alpha: 0.2,
+                  )
                 : widget.backgroundColor ?? AppTheme.glassBg,
             borderRadius: BorderRadius.circular(widget.borderRadius),
             border: Border.all(

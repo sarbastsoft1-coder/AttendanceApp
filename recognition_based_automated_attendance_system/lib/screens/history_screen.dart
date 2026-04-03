@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
 import '../providers/attendance_provider.dart';
 import '../widgets/stats_card.dart';
@@ -22,6 +23,9 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   DateTimeRange? _selectedDateRange;
   String _filterStatus = 'All';
+
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
 
   bool get _isDesktop =>
       !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
@@ -73,7 +77,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final content = _buildContent();
-    
+
     if (widget.embedded) {
       return content;
     }
@@ -82,7 +86,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: widget.embedded
           ? null
           : AppBar(
-              title: const Text('Attendance History'),
+              title: Text(t('Attendance History')),
               leading: _isDesktop
                   ? IconButton(
                       icon: const Icon(Icons.arrow_back_rounded),
@@ -103,8 +107,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            const Text(
-              'Attendance History',
+            Text(
+              t('Attendance History'),
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
@@ -113,8 +117,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ).animate().fadeIn(delay: 100.ms),
             const SizedBox(height: 4),
-            const Text(
-              'View and filter your past attendance records',
+            Text(
+              t('View and filter your past attendance records'),
               style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
             ).animate().fadeIn(delay: 150.ms),
             const SizedBox(height: 24),
@@ -142,7 +146,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             icon: Icons.calendar_today_rounded,
             label: _selectedDateRange != null
                 ? '${DateFormat('MMM d').format(_selectedDateRange!.start)} - ${DateFormat('MMM d').format(_selectedDateRange!.end)}'
-                : 'All Dates',
+                : t('All Dates'),
             isActive: _selectedDateRange != null,
             onTap: _pickDateRange,
           ),
@@ -174,15 +178,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 },
                 child: Row(
                   children: [
-                    const Icon(Icons.clear_rounded,
-                        color: AppTheme.textMuted, size: 16),
+                    const Icon(
+                      Icons.clear_rounded,
+                      color: AppTheme.textMuted,
+                      size: 16,
+                    ),
                     const SizedBox(width: 4),
-                    const Text(
-                      'Clear Filters',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textMuted,
-                      ),
+                    Text(
+                      t('Clear Filters'),
+                      style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
                     ),
                   ],
                 ),
@@ -200,20 +204,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(48),
-              child: CircularProgressIndicator(
-                color: AppTheme.primaryColor,
-              ),
+              child: CircularProgressIndicator(color: AppTheme.primaryColor),
             ),
           );
         }
 
         var records = attendance.history;
-        
+
         // Apply status filter
         if (_filterStatus != 'All') {
           records = records
-              .where((r) =>
-                  r.status.toLowerCase() == _filterStatus.toLowerCase())
+              .where(
+                (r) => r.status.toLowerCase() == _filterStatus.toLowerCase(),
+              )
               .toList();
         }
 
@@ -235,8 +238,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 const SizedBox(height: 16),
                 Text(
                   attendance.error != null
-                      ? 'Failed to load history'
-                      : 'No records found',
+                      ? t('Failed to load history')
+                      : t('No records found'),
                   style: const TextStyle(
                     fontSize: 16,
                     color: AppTheme.textSecondary,
@@ -244,7 +247,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  attendance.error ?? 'Try adjusting your filters',
+                  attendance.error ?? t('Try adjusting your filters'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 13,
@@ -256,7 +259,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ElevatedButton.icon(
                     onPressed: _loadHistory,
                     icon: const Icon(Icons.refresh_rounded, size: 18),
-                    label: const Text('Retry'),
+                    label: Text(t('Retry')),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryColor,
                       foregroundColor: Colors.white,
@@ -277,76 +280,115 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
-                  headingRowColor:
-                      WidgetStatePropertyAll(AppTheme.bgElevated),
-                  dataRowColor:
-                      WidgetStatePropertyAll(Colors.transparent),
-                  columns: const [
-                    DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.w600))),
-                    DataColumn(label: Text('Day', style: TextStyle(fontWeight: FontWeight.w600))),
-                    DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.w600))),
-                    DataColumn(label: Text('Time', style: TextStyle(fontWeight: FontWeight.w600))),
-                    DataColumn(label: Text('Confidence', style: TextStyle(fontWeight: FontWeight.w600))),
-                  ],
-                rows: records.map((record) {
-                  Color statusColor;
-                  switch (record.status.toLowerCase()) {
-                    case 'present':
-                      statusColor = AppTheme.successColor;
-                      break;
-                    case 'late':
-                      statusColor = AppTheme.warningColor;
-                      break;
-                    case 'absent':
-                      statusColor = AppTheme.errorColor;
-                      break;
-                    default:
-                      statusColor = AppTheme.textSecondary;
-                  }
-
-                  return DataRow(cells: [
-                    DataCell(Text(
-                      DateFormat('MMM d, yyyy').format(record.date),
-                      style: const TextStyle(color: AppTheme.textPrimary),
-                    )),
-                    DataCell(Text(
-                      DateFormat('EEEE').format(record.date),
-                      style: const TextStyle(color: AppTheme.textSecondary),
-                    )),
-                    DataCell(
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          record.status,
-                          style: TextStyle(
-                            color: statusColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
+                  headingRowColor: WidgetStatePropertyAll(AppTheme.bgElevated),
+                  dataRowColor: WidgetStatePropertyAll(Colors.transparent),
+                  columns: [
+                    DataColumn(
+                      label: Text(
+                        t('Date'),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
-                    DataCell(Text(
-                      record.formattedTime,
-                      style: const TextStyle(color: AppTheme.textPrimary),
-                    )),
-                    DataCell(Text(
-                      record.confidence != null
-                          ? '${(record.confidence! * 100).toStringAsFixed(0)}%'
-                          : '—',
-                      style: const TextStyle(color: AppTheme.textSecondary),
-                    )),
-                  ]);
-                }).toList(),
+                    DataColumn(
+                      label: Text(
+                        t('Day'),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        t('Status'),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        t('Time'),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        t('Confidence'),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                  rows: records.map((record) {
+                    Color statusColor;
+                    switch (record.status.toLowerCase()) {
+                      case 'present':
+                        statusColor = AppTheme.successColor;
+                        break;
+                      case 'late':
+                        statusColor = AppTheme.warningColor;
+                        break;
+                      case 'absent':
+                        statusColor = AppTheme.errorColor;
+                        break;
+                      default:
+                        statusColor = AppTheme.textSecondary;
+                    }
+
+                    return DataRow(
+                      cells: [
+                        DataCell(
+                          Text(
+                            DateFormat('MMM d, yyyy').format(record.date),
+                            style: const TextStyle(color: AppTheme.textPrimary),
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            DateFormat('EEEE').format(record.date),
+                            style: const TextStyle(
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              t(record.statusDisplay),
+                              style: TextStyle(
+                                color: statusColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            record.formattedTime,
+                            style: const TextStyle(color: AppTheme.textPrimary),
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            record.confidence != null
+                                ? '${(record.confidence! * 100).toStringAsFixed(0)}%'
+                                : '—',
+                            style: const TextStyle(
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
               ),
             ),
-          ),
-        ).animate().fadeIn(delay: 300.ms);
+          ).animate().fadeIn(delay: 300.ms);
         }
 
         // Mobile — Card List
@@ -403,8 +445,8 @@ class _FilterChipState extends State<_FilterChip> {
             color: widget.isActive
                 ? AppTheme.primaryColor.withValues(alpha: 0.15)
                 : _isHovered
-                    ? AppTheme.glassHighlight
-                    : Colors.transparent,
+                ? AppTheme.glassHighlight
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: widget.isActive
@@ -417,19 +459,22 @@ class _FilterChipState extends State<_FilterChip> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (widget.icon != null) ...[
-                Icon(widget.icon,
-                    size: 14,
-                    color: widget.isActive
-                        ? AppTheme.primaryLight
-                        : AppTheme.textSecondary),
+                Icon(
+                  widget.icon,
+                  size: 14,
+                  color: widget.isActive
+                      ? AppTheme.primaryLight
+                      : AppTheme.textSecondary,
+                ),
                 const SizedBox(width: 6),
               ],
               Text(
-                widget.label,
+                context.t(widget.label),
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight:
-                      widget.isActive ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: widget.isActive
+                      ? FontWeight.w600
+                      : FontWeight.w400,
                   color: widget.isActive
                       ? AppTheme.primaryLight
                       : AppTheme.textSecondary,

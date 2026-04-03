@@ -35,8 +35,8 @@ class User {
       hasRegisteredFace: json['has_registered_face'] ?? false,
       isActive: json['is_active'] ?? true,
       isVerified: json['is_verified'] ?? false,
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at']) 
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
           : DateTime.now(),
     );
   }

@@ -7,7 +7,7 @@ import '../models/user_model.dart';
 class StorageService {
   static final StorageService _instance = StorageService._internal();
   factory StorageService() => _instance;
-  
+
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   SharedPreferences? _prefs;
 

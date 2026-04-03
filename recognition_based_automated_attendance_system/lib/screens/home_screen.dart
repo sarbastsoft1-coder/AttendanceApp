@@ -1,17 +1,21 @@
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+
 import '../config/app_theme.dart';
-import '../providers/auth_provider.dart';
-import '../providers/attendance_provider.dart';
-import '../providers/notification_provider.dart';
+import '../localization/localization_extensions.dart';
 import '../models/attendance_model.dart';
-import '../widgets/window_title_bar.dart';
+import '../providers/attendance_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/language_provider.dart';
+import '../providers/notification_provider.dart';
+import '../widgets/responsive_layout.dart';
 import '../widgets/sidebar_navigation.dart';
 import '../widgets/stats_card.dart';
-import '../widgets/responsive_layout.dart';
+import '../widgets/window_title_bar.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
 
@@ -89,22 +93,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _logout() async {
+    final language = context.read<LanguageProvider>();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
+        title: Text(language.tr('signOutTitle')),
+        content: Text(language.tr('signOutConfirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(language.tr('cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.errorColor,
             ),
-            child: const Text('Sign Out'),
+            child: Text(language.tr('signOutTitle')),
           ),
         ],
       ),
@@ -173,6 +178,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMobileLayout() {
+    final language = context.language;
+
     return Scaffold(
       body: _buildCurrentPage(),
       bottomNavigationBar: BottomNavigationBar(
@@ -182,18 +189,18 @@ class _HomeScreenState extends State<HomeScreen> {
           if (index == 1) _onNavItemSelected(1);
           if (index == 2) _onNavItemSelected(4);
         },
-        items: const [
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_rounded),
-            label: 'Dashboard',
+            icon: const Icon(Icons.dashboard_rounded),
+            label: language.tr('dashboard'),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.history_rounded),
-            label: 'History',
+            icon: const Icon(Icons.history_rounded),
+            label: language.tr('history'),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
-            label: 'Profile',
+            icon: const Icon(Icons.person_rounded),
+            label: language.tr('profile'),
           ),
         ],
       ),
@@ -205,7 +212,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ─── Dashboard Content ──────────────────────────────────────
 class _DashboardContent extends StatelessWidget {
   final VoidCallback onRefresh;
   final VoidCallback onHistoryTap;
@@ -224,13 +230,10 @@ class _DashboardContent extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ─── Header ─────────────────────────
             _buildHeader(context),
             const SizedBox(height: 28),
-            // ─── Stat Cards ─────────────────────
             _buildStatCards(context),
             const SizedBox(height: 28),
-            // ─── Quick Actions + Today Status ───
             _buildMainContent(context),
           ],
         ),
@@ -239,10 +242,12 @@ class _DashboardContent extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final language = context.language;
+
     return Consumer2<AuthProvider, NotificationProvider>(
       builder: (context, auth, notifications, _) {
-        final name = auth.user?.fullName ?? 'Teacher';
-        final greeting = _getGreeting();
+        final name = auth.user?.fullName ?? language.tr('user');
+        final greeting = _getGreeting(language);
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -250,7 +255,7 @@ class _DashboardContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$greeting, $name 👋',
+                  '$greeting، $name 👋',
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -260,7 +265,7 @@ class _DashboardContent extends StatelessWidget {
                 ).animate().fadeIn(delay: 100.ms).slideX(begin: -0.02),
                 const SizedBox(height: 4),
                 Text(
-                  _getDateString(),
+                  _getDateString(language),
                   style: const TextStyle(
                     fontSize: 14,
                     color: AppTheme.textSecondary,
@@ -272,13 +277,13 @@ class _DashboardContent extends StatelessWidget {
               children: [
                 _HeaderAction(
                   icon: Icons.refresh_rounded,
-                  tooltip: 'Refresh',
+                  tooltip: language.tr('refresh'),
                   onTap: onRefresh,
                 ),
                 const SizedBox(width: 8),
                 _HeaderAction(
                   icon: Icons.notifications_outlined,
-                  tooltip: 'Notifications',
+                  tooltip: language.tr('notifications'),
                   onTap: () => Navigator.pushNamed(context, '/notifications'),
                   badge: notifications.unreadCount > 0
                       ? notifications.unreadCount
@@ -293,6 +298,8 @@ class _DashboardContent extends StatelessWidget {
   }
 
   Widget _buildStatCards(BuildContext context) {
+    final language = context.language;
+
     return Consumer<AttendanceProvider>(
       builder: (context, attendance, _) {
         final stats = attendance.stats;
@@ -305,7 +312,7 @@ class _DashboardContent extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           children: [
             StatsCard(
-                  title: 'Total Present',
+                  title: language.tr('totalPresent'),
                   value: '${stats?.presentDays ?? 0}',
                   icon: Icons.check_circle_rounded,
                   iconColor: AppTheme.successColor,
@@ -314,7 +321,7 @@ class _DashboardContent extends StatelessWidget {
                 .fadeIn(delay: 300.ms)
                 .scale(begin: const Offset(0.95, 0.95)),
             StatsCard(
-                  title: 'Total Late',
+                  title: language.tr('totalLate'),
                   value: '${stats?.lateDays ?? 0}',
                   icon: Icons.access_time_rounded,
                   iconColor: AppTheme.warningColor,
@@ -323,7 +330,7 @@ class _DashboardContent extends StatelessWidget {
                 .fadeIn(delay: 400.ms)
                 .scale(begin: const Offset(0.95, 0.95)),
             StatsCard(
-                  title: 'Total Absent',
+                  title: language.tr('totalAbsent'),
                   value: '${stats?.absentDays ?? 0}',
                   icon: Icons.cancel_rounded,
                   iconColor: AppTheme.errorColor,
@@ -332,7 +339,7 @@ class _DashboardContent extends StatelessWidget {
                 .fadeIn(delay: 500.ms)
                 .scale(begin: const Offset(0.95, 0.95)),
             StatsCard(
-                  title: 'Attendance Rate',
+                  title: language.tr('attendanceRate'),
                   value: _calcRate(stats),
                   icon: Icons.trending_up_rounded,
                   iconColor: AppTheme.secondaryColor,
@@ -372,16 +379,44 @@ class _DashboardContent extends StatelessWidget {
     );
   }
 
-  String _getGreeting() {
+  String _getGreeting(LanguageProvider language) {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return language.tr('goodMorning');
+    if (hour < 17) return language.tr('goodAfternoon');
+    return language.tr('goodEvening');
   }
 
-  String _getDateString() {
+  String _getDateString(LanguageProvider language) {
     final now = DateTime.now();
-    final months = [
+    if (language.isSorani) {
+      const months = [
+        '',
+        'کانوونی دووەم',
+        'شوبات',
+        'ئادار',
+        'نیسان',
+        'ئایار',
+        'حوزەیران',
+        'تەمموز',
+        'ئاب',
+        'ئەیلوول',
+        'تشرینی یەکەم',
+        'تشرینی دووەم',
+        'کانوونی یەکەم',
+      ];
+      const days = [
+        'دووشەممە',
+        'سێشەممە',
+        'چوارشەممە',
+        'پێنجشەممە',
+        'هەینی',
+        'شەممە',
+        'یەکشەممە',
+      ];
+      return '${days[now.weekday - 1]}، ${now.day} ${months[now.month]} ${now.year}';
+    }
+
+    const months = [
       '',
       'Jan',
       'Feb',
@@ -396,7 +431,7 @@ class _DashboardContent extends StatelessWidget {
       'Nov',
       'Dec',
     ];
-    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return '${days[now.weekday - 1]}, ${months[now.month]} ${now.day}, ${now.year}';
   }
 
@@ -406,7 +441,6 @@ class _DashboardContent extends StatelessWidget {
   }
 }
 
-// ─── Quick Actions Panel ────────────────────────────────────
 class _QuickActionsPanel extends StatelessWidget {
   final VoidCallback onHistoryTap;
 
@@ -414,15 +448,17 @@ class _QuickActionsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final language = context.language;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: AppTheme.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Quick Actions',
-            style: TextStyle(
+          Text(
+            language.tr('quickActions'),
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
               color: AppTheme.textPrimary,
@@ -435,45 +471,38 @@ class _QuickActionsPanel extends StatelessWidget {
             children: [
               _ActionTile(
                 icon: Icons.qr_code_scanner_rounded,
-                label: 'Room Scanner',
+                label: language.tr('roomScanner'),
                 color: AppTheme.primaryColor,
                 onTap: () => Navigator.pushNamed(context, '/room-scanner'),
               ),
               _ActionTile(
                 icon: Icons.group_add_rounded,
-                label: 'Batch Register',
+                label: language.tr('batchRegister'),
                 color: AppTheme.secondaryColor,
                 onTap: () =>
                     Navigator.pushNamed(context, '/batch-registration'),
               ),
-              // AMA FUTURA
-              // _ActionTile(
-              //   icon: Icons.assignment_rounded,
-              //   label: 'Exam Proctor',
-              //   color: AppTheme.accentColor,
-              //   onTap: () => Navigator.pushNamed(context, '/exam-proctor'),
-              // ),
               _ActionTile(
                 icon: Icons.edit_note_rounded,
-                label: 'Edit Attendance',
+                label: language.tr('editAttendance'),
                 color: AppTheme.infoColor,
                 onTap: () => Navigator.pushNamed(context, '/admin/attendance'),
               ),
               _ActionTile(
                 icon: Icons.class_rounded,
-                label: 'Manage Classes',
+                label: language.tr('manageClasses'),
                 color: Colors.amber,
                 onTap: () => Navigator.pushNamed(context, '/admin/classes'),
               ),
               _ActionTile(
                 icon: Icons.event_note_rounded,
-                label: 'Leave Requests',
+                label: language.tr('leaveRequests'),
                 color: Colors.teal,
                 onTap: () => Navigator.pushNamed(context, '/leave-requests'),
               ),
               _ActionTile(
                 icon: Icons.history_rounded,
-                label: 'Full History',
+                label: language.tr('fullHistory'),
                 color: Colors.purple,
                 onTap: onHistoryTap,
               ),
@@ -561,10 +590,11 @@ class _ActionTileState extends State<_ActionTile> {
   }
 }
 
-// ─── Today Status Panel ─────────────────────────────────────
 class _TodayStatusPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final language = context.language;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: AppTheme.cardDecoration(),
@@ -577,9 +607,9 @@ class _TodayStatusPanel extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Today's Status",
-                style: TextStyle(
+              Text(
+                language.tr('todaysStatus'),
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary,
@@ -608,9 +638,9 @@ class _TodayStatusPanel extends StatelessWidget {
                         size: 40,
                       ),
                       const SizedBox(height: 12),
-                      const Text(
-                        'No attendance recorded today',
-                        style: TextStyle(
+                      Text(
+                        language.tr('noAttendanceToday'),
+                        style: const TextStyle(
                           fontSize: 14,
                           color: AppTheme.textSecondary,
                         ),
@@ -626,7 +656,6 @@ class _TodayStatusPanel extends StatelessWidget {
   }
 }
 
-// ─── Header Action Button ───────────────────────────────────
 class _HeaderAction extends StatefulWidget {
   final IconData icon;
   final String tooltip;

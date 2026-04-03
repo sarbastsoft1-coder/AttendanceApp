@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import '../config/app_theme.dart';
+import '../providers/language_provider.dart';
 
 /// Custom Windows title bar with drag-to-move and window controls
 class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
-  final String title;
-  
-  const WindowTitleBar({super.key, this.title = 'Face Attendance System'});
+  final String? title;
+
+  const WindowTitleBar({super.key, this.title});
 
   @override
   Size get preferredSize => const Size.fromHeight(38);
 
   @override
   Widget build(BuildContext context) {
+    final resolvedTitle =
+        title ?? context.watch<LanguageProvider>().tr('appTitle');
+
     return Container(
       height: 38,
       decoration: const BoxDecoration(
@@ -55,7 +60,7 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      title,
+                      resolvedTitle,
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppTheme.textSecondary,

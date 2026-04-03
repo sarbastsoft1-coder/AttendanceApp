@@ -96,7 +96,7 @@ def _get_settings(db: Session) -> AppSettings:
     return AppSettings(
         late_threshold_hour=int(raw.get("late_threshold_hour", 9)),
         late_threshold_minute=int(raw.get("late_threshold_minute", 0)),
-        min_face_images=int(raw.get("min_face_images", 3)),
+        min_face_images=int(raw.get("min_face_images", 2)),
         max_face_images=int(raw.get("max_face_images", 10)),
         attendance_alert_pct=float(raw.get("attendance_alert_pct", 75)),
         qr_session_minutes=int(raw.get("qr_session_minutes", 15)),
@@ -378,7 +378,7 @@ async def register(user_data: UserCreate, request: Request, db: Session = Depend
         hashed_password=get_password_hash(user_data.password),
         phone=user_data.phone,
         department=user_data.department,
-        role=user_data.role or "student",
+        role=user_data.role or "teacher",
         verification_token=verification_token,
     )
     db.add(new_user)

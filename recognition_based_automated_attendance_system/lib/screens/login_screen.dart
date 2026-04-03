@@ -1,12 +1,17 @@
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
+import '../providers/language_provider.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_textfield.dart';
+import '../widgets/language_selector.dart';
 import '../widgets/window_title_bar.dart';
 
 /// Premium Split-Panel Login Screen for Windows Desktop
@@ -54,6 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final authProvider = context.read<AuthProvider>();
+    final language = context.read<LanguageProvider>();
     final success = await authProvider.login(
       email: _emailController.text.trim(),
       password: _passwordController.text,
@@ -71,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.error ?? 'Login failed'),
+          content: Text(authProvider.error ?? language.tr('loginFailed')),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -81,36 +87,37 @@ class _LoginScreenState extends State<LoginScreen> {
   void _showForgotPasswordDialog() {
     final forgotEmailController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    final language = context.read<LanguageProvider>();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Forgot Password'),
+        title: Text(language.tr('forgotPasswordTitle')),
         content: Form(
           key: formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Enter your email address and we\'ll send you a link to reset your password.',
-                style: TextStyle(
+              Text(
+                language.tr('forgotPasswordHelp'),
+                style: const TextStyle(
                   color: AppTheme.textSecondary,
                   fontSize: 14,
                 ),
               ),
               const SizedBox(height: 16),
               CustomTextField(
-                label: 'Email',
-                hint: 'Enter your email',
+                label: language.tr('email'),
+                hint: language.tr('enterEmail'),
                 controller: forgotEmailController,
                 keyboardType: TextInputType.emailAddress,
                 prefixIcon: Icons.email_outlined,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
+                    return language.tr('pleaseEnterEmail');
                   }
                   if (!value.contains('@')) {
-                    return 'Please enter a valid email';
+                    return language.tr('pleaseEnterValidEmail');
                   }
                   return null;
                 },
@@ -121,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(language.tr('cancel')),
           ),
           Consumer<AuthProvider>(
             builder: (context, auth, child) {
@@ -143,8 +150,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           SnackBar(
                             content: Text(
                               success
-                                  ? 'Password reset link sent to your email'
-                                  : auth.error ?? 'Failed to send reset link',
+                                  ? language.tr('passwordResetSent')
+                                  : auth.error ??
+                                        language.tr('failedToSendResetLink'),
                             ),
                             backgroundColor: success
                                 ? AppTheme.successColor
@@ -158,11 +166,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
-                    : const Text('Send Reset Link'),
+                    : Text(language.tr('sendResetLink')),
               );
             },
           ),
@@ -185,16 +194,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ─── Desktop: Split Panel Layout ─────────────────────────
   Widget _buildDesktopLayout() {
     return Row(
       children: [
-        // Left Panel — Branding
-        Expanded(
-          flex: 4,
-          child: _BrandingPanel(),
-        ),
-        // Right Panel — Login Form
+        Expanded(flex: 4, child: _BrandingPanel()),
         Expanded(
           flex: 6,
           child: Container(
@@ -214,7 +217,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ─── Mobile: Full Screen Layout ──────────────────────────
   Widget _buildMobileLayout() {
     return Container(
       color: AppTheme.bgBase,
@@ -228,13 +230,19 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildForm() {
+    final language = context.language;
+
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: const LanguageSelector(compact: true),
+          ),
           if (!_isDesktop) ...[
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
             Center(
               child: Container(
                 width: 70,
@@ -258,9 +266,10 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             const SizedBox(height: 24),
-          ],
+          ] else
+            const SizedBox(height: 12),
           Text(
-            'Welcome back',
+            language.tr('welcomeBack'),
             style: TextStyle(
               fontSize: _isDesktop ? 32 : 28,
               fontWeight: FontWeight.bold,
@@ -269,40 +278,34 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0),
           const SizedBox(height: 8),
-          const Text(
-            'Sign in to your teacher dashboard',
-            style: TextStyle(
-              fontSize: 15,
-              color: AppTheme.textSecondary,
-            ),
+          Text(
+            language.tr('signInTeacherDashboard'),
+            style: const TextStyle(fontSize: 15, color: AppTheme.textSecondary),
           ).animate().fadeIn(delay: 200.ms),
           const SizedBox(height: 36),
-
-          // Email Field
           CustomTextField(
-            label: 'Email',
-            hint: 'Enter your email',
+            label: language.tr('email'),
+            hint: language.tr('enterEmail'),
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             prefixIcon: Icons.email_outlined,
             textInputAction: TextInputAction.next,
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Email is required';
+                return language.tr('emailRequired');
               }
-              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                  .hasMatch(value)) {
-                return 'Enter a valid email';
+              if (!RegExp(
+                r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+              ).hasMatch(value)) {
+                return language.tr('enterValidEmail');
               }
               return null;
             },
           ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.05, end: 0),
           const SizedBox(height: 16),
-
-          // Password Field
           CustomTextField(
-            label: 'Password',
-            hint: 'Enter your password',
+            label: language.tr('password'),
+            hint: language.tr('enterPassword'),
             controller: _passwordController,
             obscureText: true,
             prefixIcon: Icons.lock_outline,
@@ -310,17 +313,15 @@ class _LoginScreenState extends State<LoginScreen> {
             onSubmitted: (_) => _login(),
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Password is required';
+                return language.tr('passwordRequired');
               }
               if (value.length < 6) {
-                return 'Password must be at least 6 characters';
+                return language.tr('passwordMinLength');
               }
               return null;
             },
           ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.05, end: 0),
           const SizedBox(height: 16),
-
-          // Remember Me & Forgot Password
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -332,9 +333,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       setState(() => _rememberMe = value ?? false);
                     },
                   ),
-                  const Text(
-                    'Remember me',
-                    style: TextStyle(
+                  Text(
+                    language.tr('rememberMe'),
+                    style: const TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 13,
                     ),
@@ -344,22 +345,17 @@ class _LoginScreenState extends State<LoginScreen> {
               TextButton(
                 onPressed: _showForgotPasswordDialog,
                 child: Text(
-                  'Forgot Password?',
-                  style: TextStyle(
-                    color: AppTheme.primaryLight,
-                    fontSize: 13,
-                  ),
+                  language.tr('forgotPassword'),
+                  style: TextStyle(color: AppTheme.primaryLight, fontSize: 13),
                 ),
               ),
             ],
           ).animate().fadeIn(delay: 500.ms),
           const SizedBox(height: 28),
-
-          // Login Button
           Consumer<AuthProvider>(
             builder: (context, auth, child) {
               return CustomButton(
-                text: 'Sign In',
+                text: language.tr('signIn'),
                 isLoading: auth.isLoading,
                 onPressed: _login,
                 icon: Icons.login_rounded,
@@ -368,14 +364,12 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.05, end: 0),
           const SizedBox(height: 28),
-
-          // Sign Up Link
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
-                "Don't have an account? ",
-                style: TextStyle(
+              Text(
+                '${language.tr('dontHaveAccount')} ',
+                style: const TextStyle(
                   color: AppTheme.textSecondary,
                   fontSize: 13,
                 ),
@@ -384,9 +378,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
                   onTap: () => Navigator.pushNamed(context, '/register'),
-                  child: const Text(
-                    'Sign Up',
-                    style: TextStyle(
+                  child: Text(
+                    language.tr('signUp'),
+                    style: const TextStyle(
                       color: AppTheme.primaryLight,
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
@@ -402,10 +396,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ─── Left Branding Panel ────────────────────────────────────
 class _BrandingPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final language = context.language;
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -416,12 +411,7 @@ class _BrandingPanel extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // Dot grid
-          CustomPaint(
-            size: Size.infinite,
-            painter: _BrandingDotPainter(),
-          ),
-          // Glow orb top-right
+          CustomPaint(size: Size.infinite, painter: _BrandingDotPainter()),
           Positioned(
             top: -60,
             right: -40,
@@ -439,7 +429,6 @@ class _BrandingPanel extends StatelessWidget {
               ),
             ),
           ),
-          // Glow orb bottom-left
           Positioned(
             bottom: -30,
             left: -50,
@@ -457,7 +446,6 @@ class _BrandingPanel extends StatelessWidget {
               ),
             ),
           ),
-          // Content
           Padding(
             padding: const EdgeInsets.all(48),
             child: Column(
@@ -465,25 +453,25 @@ class _BrandingPanel extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primaryGlow,
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryGlow,
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.face_retouching_natural,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                )
+                      child: const Icon(
+                        Icons.face_retouching_natural,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    )
                     .animate()
                     .fadeIn(delay: 200.ms)
                     .scale(begin: const Offset(0.8, 0.8)),
@@ -499,7 +487,7 @@ class _BrandingPanel extends StatelessWidget {
                 ).animate().fadeIn(delay: 400.ms).slideX(begin: -0.05),
                 const SizedBox(height: 8),
                 Text(
-                  'Teacher Attendance System',
+                  language.tr('teacherAttendanceSystem'),
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.white.withValues(alpha: 0.5),
@@ -507,25 +495,24 @@ class _BrandingPanel extends StatelessWidget {
                   ),
                 ).animate().fadeIn(delay: 500.ms),
                 const SizedBox(height: 48),
-                // Feature list
                 _FeatureItem(
                   icon: Icons.qr_code_scanner_rounded,
-                  title: 'Smart Room Scanning',
-                  subtitle: 'Process entire halls in seconds',
+                  title: language.tr('smartRoomScanning'),
+                  subtitle: language.tr('processEntireHallsSeconds'),
                   delay: 600,
                 ),
                 const SizedBox(height: 20),
                 _FeatureItem(
                   icon: Icons.face_retouching_natural,
-                  title: 'Face Recognition',
-                  subtitle: 'Automated student identification',
+                  title: language.tr('faceRecognition'),
+                  subtitle: language.tr('automatedStudentIdentification'),
                   delay: 700,
                 ),
                 const SizedBox(height: 20),
                 _FeatureItem(
                   icon: Icons.analytics_rounded,
-                  title: 'Analytics Dashboard',
-                  subtitle: 'Track attendance trends',
+                  title: language.tr('analyticsDashboard'),
+                  subtitle: language.tr('trackAttendanceTrends'),
                   delay: 800,
                 ),
               ],
@@ -553,44 +540,45 @@ class _FeatureItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Icon(icon, color: AppTheme.primaryLight, size: 20),
             ),
-          ),
-          child: Icon(icon, color: AppTheme.primaryLight, size: 20),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.4),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ).animate().fadeIn(delay: Duration(milliseconds: delay)).slideX(begin: -0.05);
+            ),
+          ],
+        )
+        .animate()
+        .fadeIn(delay: Duration(milliseconds: delay))
+        .slideX(begin: -0.05);
   }
 }
 

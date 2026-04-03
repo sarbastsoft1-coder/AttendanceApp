@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../models/leave_request_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/leave_request_provider.dart';
@@ -20,10 +21,14 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen>
   late TabController _tabController;
   final String _statusFilter = 'all';
 
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
+
   @override
   void initState() {
     super.initState();
-    final isTeacherOrAdmin = context.read<AuthProvider>().user?.role != 'student';
+    final isTeacherOrAdmin =
+        context.read<AuthProvider>().user?.role != 'student';
     _tabController = TabController(
       length: isTeacherOrAdmin ? 3 : 2,
       vsync: this,
@@ -41,8 +46,8 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen>
 
   Future<void> _refresh() async {
     await context.read<LeaveRequestProvider>().fetchLeaveRequests(
-          statusFilter: _statusFilter == 'all' ? null : _statusFilter,
-        );
+      statusFilter: _statusFilter == 'all' ? null : _statusFilter,
+    );
   }
 
   void _showSubmitDialog() {
@@ -62,9 +67,13 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                success ? 'Leave request submitted!' : (provider.error ?? 'Failed to submit'),
+                success
+                    ? context.t('Leave request submitted!')
+                    : (provider.error ?? context.t('Failed to submit')),
               ),
-              backgroundColor: success ? AppTheme.successColor : AppTheme.errorColor,
+              backgroundColor: success
+                  ? AppTheme.successColor
+                  : AppTheme.errorColor,
             ),
           );
           if (success) _refresh();
@@ -76,21 +85,20 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen>
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
-    final isTeacherOrAdmin =
-        user?.role == 'teacher' || user?.role == 'admin';
+    final isTeacherOrAdmin = user?.role == 'teacher' || user?.role == 'admin';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Leave Requests'),
+        title: Text(t('Leave Requests')),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppTheme.primaryColor,
           labelColor: AppTheme.primaryLight,
           unselectedLabelColor: AppTheme.textSecondary,
           tabs: [
-            const Tab(text: 'All'),
-            const Tab(text: 'Pending'),
-            if (isTeacherOrAdmin) const Tab(text: 'Reviewed'),
+            Tab(text: t('All')),
+            Tab(text: t('Pending')),
+            if (isTeacherOrAdmin) Tab(text: t('Reviewed')),
           ],
         ),
         actions: [
@@ -137,8 +145,8 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen>
         onPressed: _showSubmitDialog,
         backgroundColor: AppTheme.primaryColor,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          'New Request',
+        label: Text(
+          t('New Request'),
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
       ),
@@ -162,14 +170,18 @@ class _LeaveList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (requests.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.beach_access_outlined, size: 64, color: AppTheme.textMuted),
+            Icon(
+              Icons.beach_access_outlined,
+              size: 64,
+              color: AppTheme.textMuted,
+            ),
             SizedBox(height: 16),
             Text(
-              'No leave requests found',
+              context.t('No leave requests found'),
               style: TextStyle(
                 fontSize: 16,
                 color: AppTheme.textSecondary,
@@ -204,10 +216,7 @@ class _LeaveCard extends StatelessWidget {
   final LeaveRequest leave;
   final bool isTeacherOrAdmin;
 
-  const _LeaveCard({
-    required this.leave,
-    required this.isTeacherOrAdmin,
-  });
+  const _LeaveCard({required this.leave, required this.isTeacherOrAdmin});
 
   Color get _statusColor {
     switch (leave.status) {
@@ -240,7 +249,9 @@ class _LeaveCard extends StatelessWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: Text('Review: ${leave.displayName}'),
+            title: Text(
+              context.t('Review: {name}', params: {'name': leave.displayName}),
+            ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -257,7 +268,7 @@ class _LeaveCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Date: ${DateFormat('MMM d, yyyy').format(leave.leaveDate)}',
+                          '${context.t('Date')}: ${DateFormat('MMM d, yyyy').format(leave.leaveDate)}',
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
@@ -266,7 +277,7 @@ class _LeaveCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Reason: ${leave.reason}',
+                          '${context.t('Reason')}: ${leave.reason}',
                           style: const TextStyle(
                             color: AppTheme.textSecondary,
                             fontSize: 13,
@@ -278,8 +289,8 @@ class _LeaveCard extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   // Decision
-                  const Text(
-                    'Decision',
+                  Text(
+                    context.t('Decision'),
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textSecondary,
@@ -315,8 +326,8 @@ class _LeaveCard extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   // Note
-                  const Text(
-                    'Note (optional)',
+                  Text(
+                    context.t('Note (optional)'),
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textSecondary,
@@ -327,8 +338,8 @@ class _LeaveCard extends StatelessWidget {
                   TextField(
                     controller: noteController,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: 'Add a note for the student...',
+                    decoration: InputDecoration(
+                      hintText: context.t('Write an optional note...'),
                     ),
                   ),
                 ],
@@ -337,7 +348,7 @@ class _LeaveCard extends StatelessWidget {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                child: Text(context.t('Cancel')),
               ),
               Consumer<LeaveRequestProvider>(
                 builder: (context, provider, _) {
@@ -358,8 +369,17 @@ class _LeaveCard extends StatelessWidget {
                               SnackBar(
                                 content: Text(
                                   success
-                                      ? 'Leave request ${selectedStatus}'
-                                      : (provider.error ?? 'Failed'),
+                                      ? context.t(
+                                          'Leave request {status}',
+                                          params: {
+                                            'status': context.t(
+                                              selectedStatus == 'approved'
+                                                  ? 'Approved'
+                                                  : 'Rejected',
+                                            ),
+                                          },
+                                        )
+                                      : (provider.error ?? context.t('Failed')),
                                 ),
                                 backgroundColor: success
                                     ? AppTheme.successColor
@@ -377,10 +397,16 @@ class _LeaveCard extends StatelessWidget {
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : Text(
-                            selectedStatus == 'approved' ? 'Approve' : 'Reject',
+                            context.t(
+                              selectedStatus == 'approved'
+                                  ? 'Approve'
+                                  : 'Reject',
+                            ),
                             style: const TextStyle(color: Colors.white),
                           ),
                   );
@@ -452,8 +478,10 @@ class _LeaveCard extends StatelessWidget {
 
               // Status badge
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: _statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -464,7 +492,7 @@ class _LeaveCard extends StatelessWidget {
                     Icon(_statusIcon, size: 13, color: _statusColor),
                     const SizedBox(width: 4),
                     Text(
-                      leave.statusDisplay,
+                      context.t(leave.statusDisplay),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -488,8 +516,11 @@ class _LeaveCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.notes_rounded,
-                    size: 16, color: AppTheme.textMuted),
+                const Icon(
+                  Icons.notes_rounded,
+                  size: 16,
+                  color: AppTheme.textMuted,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -513,15 +544,12 @@ class _LeaveCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _statusColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _statusColor.withValues(alpha: 0.2),
-                ),
+                border: Border.all(color: _statusColor.withValues(alpha: 0.2)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.reply_rounded,
-                      size: 14, color: _statusColor),
+                  Icon(Icons.reply_rounded, size: 14, color: _statusColor),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -545,19 +573,27 @@ class _LeaveCard extends StatelessWidget {
               const Icon(Icons.schedule, size: 13, color: AppTheme.textMuted),
               const SizedBox(width: 4),
               Text(
-                'Submitted ${DateFormat('MMM d, yyyy').format(leave.createdAt)}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppTheme.textMuted,
+                context.t(
+                  'Submitted {date}',
+                  params: {
+                    'date': DateFormat('MMM d, yyyy').format(leave.createdAt),
+                  },
                 ),
+                style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
               ),
               if (leave.reviewedByName != null) ...[
                 const SizedBox(width: 12),
-                const Icon(Icons.person_outline,
-                    size: 13, color: AppTheme.textMuted),
+                const Icon(
+                  Icons.person_outline,
+                  size: 13,
+                  color: AppTheme.textMuted,
+                ),
                 const SizedBox(width: 4),
                 Text(
-                  'by ${leave.reviewedByName}',
+                  context.t(
+                    'Reviewed by {name}',
+                    params: {'name': leave.reviewedByName ?? ''},
+                  ),
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppTheme.textMuted,
@@ -575,7 +611,7 @@ class _LeaveCard extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: () => _showReviewDialog(context),
                 icon: const Icon(Icons.rate_review_rounded, size: 16),
-                label: const Text('Review Request'),
+                label: Text(context.t('Review Request')),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(
@@ -616,7 +652,9 @@ class _DecisionButton extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.15) : AppTheme.bgElevated,
+          color: isSelected
+              ? color.withValues(alpha: 0.15)
+              : AppTheme.bgElevated,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected ? color : AppTheme.glassBorder,
@@ -625,10 +663,14 @@ class _DecisionButton extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Icon(icon, color: isSelected ? color : AppTheme.textMuted, size: 24),
+            Icon(
+              icon,
+              color: isSelected ? color : AppTheme.textMuted,
+              size: 24,
+            ),
             const SizedBox(height: 4),
             Text(
-              label,
+              context.t(label),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -646,7 +688,7 @@ class _DecisionButton extends StatelessWidget {
 
 class _SubmitLeaveDialog extends StatefulWidget {
   final void Function({required DateTime date, required String reason})
-      onSubmit;
+  onSubmit;
 
   const _SubmitLeaveDialog({required this.onSubmit});
 
@@ -691,7 +733,7 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Submit Leave Request'),
+      title: Text(context.t('Submit Leave Request')),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -700,8 +742,8 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Date picker
-              const Text(
-                'Leave Date',
+              Text(
+                context.t('Leave Date'),
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
@@ -713,7 +755,9 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
                 onTap: _pickDate,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.bgElevated,
                     borderRadius: BorderRadius.circular(10),
@@ -721,8 +765,11 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_today_rounded,
-                          size: 18, color: AppTheme.primaryColor),
+                      const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 18,
+                        color: AppTheme.primaryColor,
+                      ),
                       const SizedBox(width: 12),
                       Text(
                         DateFormat('EEEE, MMM d, yyyy').format(_selectedDate),
@@ -733,8 +780,10 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
                         ),
                       ),
                       const Spacer(),
-                      const Icon(Icons.arrow_drop_down,
-                          color: AppTheme.textMuted),
+                      const Icon(
+                        Icons.arrow_drop_down,
+                        color: AppTheme.textMuted,
+                      ),
                     ],
                   ),
                 ),
@@ -742,8 +791,8 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
               const SizedBox(height: 16),
 
               // Reason
-              const Text(
-                'Reason',
+              Text(
+                context.t('Reason'),
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
@@ -755,13 +804,18 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
                 controller: _reasonController,
                 maxLines: 4,
                 maxLength: 500,
-                decoration: const InputDecoration(
-                  hintText: 'Explain the reason for your leave...',
-                  counterStyle: TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                decoration: InputDecoration(
+                  hintText: context.t('Explain the reason for your leave...'),
+                  counterStyle: TextStyle(
+                    color: AppTheme.textMuted,
+                    fontSize: 11,
+                  ),
                 ),
                 validator: (val) {
                   if (val == null || val.trim().length < 5) {
-                    return 'Please provide a reason (min 5 characters)';
+                    return context.t(
+                      'Please provide a reason (min 5 characters)',
+                    );
                   }
                   return null;
                 },
@@ -773,7 +827,7 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(context.t('Cancel')),
         ),
         Consumer<LeaveRequestProvider>(
           builder: (context, provider, _) {

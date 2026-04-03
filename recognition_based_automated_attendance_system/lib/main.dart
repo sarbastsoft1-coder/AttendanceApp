@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'config/app_theme.dart';
@@ -28,7 +31,9 @@ import 'screens/admin/admin_reports_screen.dart';
 import 'screens/admin/admin_attendance_screen.dart';
 import 'screens/room_scanner_screen.dart';
 import 'screens/batch_student_registration_screen.dart';
+import 'providers/language_provider.dart';
 import 'providers/student_management_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/admin/class_management_screen.dart';
 
 void main() async {
@@ -36,6 +41,14 @@ void main() async {
 
   // Initialize storage service
   await StorageService().init();
+
+  final themeProvider = ThemeProvider();
+  await themeProvider.init();
+
+  final languageProvider = LanguageProvider();
+  await languageProvider.init();
+  await initializeDateFormatting('en');
+  await initializeDateFormatting('ar');
 
   // Windows desktop — configure window
   if (!kIsWeb && Platform.isWindows) {
@@ -73,50 +86,75 @@ void main() async {
     );
   }
 
-  runApp(const MyApp());
+  runApp(
+    MyApp(themeProvider: themeProvider, languageProvider: languageProvider),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final ThemeProvider themeProvider;
+  final LanguageProvider languageProvider;
+
+  const MyApp({
+    super.key,
+    required this.themeProvider,
+    required this.languageProvider,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: themeProvider),
+        ChangeNotifierProvider.value(value: languageProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
         ChangeNotifierProvider(create: (_) => StudentManagementProvider()),
         ChangeNotifierProvider(create: (_) => LeaveRequestProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
-      child: MaterialApp(
-        title: 'Face Attendance System',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.dark,
-        initialRoute: '/',
-        routes: {
-          '/': (context) => const SplashScreen(),
-          '/login': (context) => const LoginScreen(),
-          '/register': (context) => const RegisterScreen(),
-          '/face-capture': (context) => const FaceCaptureScreen(),
-          '/home': (context) => const HomeScreen(),
-          '/attendance': (context) => const AttendanceScreen(),
-          '/history': (context) => const HistoryScreen(),
-          '/profile': (context) => const ProfileScreen(),
-          '/edit-profile': (context) => const EditProfileScreen(),
-          '/change-password': (context) => const ChangePasswordScreen(),
-          '/leave-requests': (context) => const LeaveRequestScreen(),
-          '/notifications': (context) => const NotificationsScreen(),
-          '/admin': (context) => const AdminDashboard(),
-          '/admin/users': (context) => const AdminUsersScreen(),
-          '/admin/reports': (context) => const AdminReportsScreen(),
-          '/admin/attendance': (context) => const AdminAttendanceScreen(),
-          '/room-scanner': (context) => const RoomScannerScreen(),
-          '/batch-registration': (context) =>
-              const BatchStudentRegistrationScreen(),
-          '/admin/classes': (context) => const ClassManagementScreen(),
+      child: Consumer2<ThemeProvider, LanguageProvider>(
+        builder: (context, theme, language, _) {
+          Intl.defaultLocale = language.materialLocale.languageCode;
+          return MaterialApp(
+            title: language.tr('appTitle'),
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: theme.themeMode,
+            locale: language.materialLocale,
+            supportedLocales: const [Locale('en'), Locale('ar')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            builder: (context, child) {
+              return Directionality(
+                textDirection: language.textDirection,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+            initialRoute: '/',
+            routes: {
+              '/': (context) => const SplashScreen(),
+              '/login': (context) => const LoginScreen(),
+              '/register': (context) => const RegisterScreen(),
+              '/face-capture': (context) => const FaceCaptureScreen(),
+              '/home': (context) => const HomeScreen(),
+              '/attendance': (context) => const AttendanceScreen(),
+              '/history': (context) => const HistoryScreen(),
+              '/profile': (context) => const ProfileScreen(),
+              '/edit-profile': (context) => const EditProfileScreen(),
+              '/change-password': (context) => const ChangePasswordScreen(),
+              '/leave-requests': (context) => const LeaveRequestScreen(),
+              '/notifications': (context) => const NotificationsScreen(),
+              '/admin': (context) => const AdminDashboard(),
+              '/admin/users': (context) => const AdminUsersScreen(),
+              '/admin/reports': (context) => const AdminReportsScreen(),
+              '/admin/attendance': (context) => const AdminAttendanceScreen(),
+              '/room-scanner': (context) => const RoomScannerScreen(),
+              '/batch-registration': (context) =>
+                  const BatchStudentRegistrationScreen(),
+              '/admin/classes': (context) => const ClassManagementScreen(),
+            },
+          );
         },
       ),
     );

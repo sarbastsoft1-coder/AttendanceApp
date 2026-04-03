@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../models/notification_model.dart';
 import '../providers/notification_provider.dart';
 
@@ -33,8 +34,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await provider.markAllAsRead();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('All notifications marked as read'),
+        SnackBar(
+          content: Text(context.t('All notifications marked as read')),
           backgroundColor: AppTheme.successColor,
         ),
       );
@@ -51,12 +52,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Notifications'),
+                Text(context.t('Notifications')),
                 if (unread > 0) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.errorColor,
                       borderRadius: BorderRadius.circular(12),
@@ -88,7 +91,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ? AppTheme.primaryColor
                       : AppTheme.textSecondary,
                 ),
-                tooltip: _showUnreadOnly ? 'Show All' : 'Show Unread Only',
+                tooltip: _showUnreadOnly
+                    ? context.t('Show All')
+                    : context.t('Show Unread Only'),
                 onPressed: () {
                   setState(() => _showUnreadOnly = !_showUnreadOnly);
                 },
@@ -101,12 +106,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               if (!provider.hasUnread) return const SizedBox.shrink();
               return TextButton(
                 onPressed: _markAllRead,
-                child: const Text(
-                  'Mark all read',
-                  style: TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 13,
-                  ),
+                child: Text(
+                  context.t('Mark all as read'),
+                  style: TextStyle(color: AppTheme.primaryColor, fontSize: 13),
                 ),
               );
             },
@@ -173,9 +175,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Notification removed'),
+          content: Text(context.t('Notification removed')),
           action: SnackBarAction(
-            label: 'Undo',
+            label: context.t('Undo'),
             onPressed: () {
               // Refresh to show it again (simple undo via re-fetch)
               provider.fetchNotifications();
@@ -211,8 +213,8 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             showUnreadOnly
-                ? 'No unread notifications'
-                : 'No notifications yet',
+                ? context.t('No unread notifications')
+                : context.t('No notifications yet'),
             style: const TextStyle(
               fontSize: 16,
               color: AppTheme.textSecondary,
@@ -222,13 +224,12 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             showUnreadOnly
-                ? "You're all caught up!"
-                : 'Notifications about attendance, leaves, and system events will appear here.',
+                ? context.t("You're all caught up!")
+                : context.t(
+                    'Notifications about attendance, leaves, and system events will appear here.',
+                  ),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppTheme.textMuted,
-            ),
+            style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
           ),
         ],
       ),
@@ -277,13 +278,107 @@ class _NotificationCard extends StatelessWidget {
     }
   }
 
-  String _timeAgo(DateTime dt) {
+  String _timeAgo(BuildContext context, DateTime dt) {
     final diff = DateTime.now().difference(dt);
-    if (diff.inSeconds < 60) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    if (diff.inSeconds < 60) {
+      return context.t('Just now');
+    }
+    if (diff.inMinutes < 60) {
+      return context.t('{count}m ago', params: {'count': '${diff.inMinutes}'});
+    }
+    if (diff.inHours < 24) {
+      return context.t('{count}h ago', params: {'count': '${diff.inHours}'});
+    }
+    if (diff.inDays < 7) {
+      return context.t('{count}d ago', params: {'count': '${diff.inDays}'});
+    }
     return DateFormat('MMM d').format(dt);
+  }
+
+  String _typeLabel(BuildContext context, String type) {
+    switch (type) {
+      case 'attendance':
+        return context.t('Attendance');
+      case 'leave':
+        return context.t('Leave');
+      case 'alert':
+        return context.t('Alert');
+      case 'system':
+      default:
+        return context.t('System');
+    }
+  }
+
+  String _statusLabel(BuildContext context, String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return context.t('Approved');
+      case 'rejected':
+        return context.t('Rejected');
+      default:
+        return context.t(status);
+    }
+  }
+
+  String _localizedMessage(BuildContext context, String message) {
+    final lateCheckInMatch = RegExp(
+      r'^You have been marked late today at ([0-9]{2}:[0-9]{2})\.$',
+    ).firstMatch(message);
+    if (lateCheckInMatch != null) {
+      return context.t(
+        'You have been marked late today at {time}.',
+        params: {'time': lateCheckInMatch.group(1)!},
+      );
+    }
+
+    final lowAttendanceMatch = RegExp(
+      r'^Your attendance is ([0-9]+(?:\.[0-9]+)?)%, which is below the ([0-9]+(?:\.[0-9]+)?)% threshold\.$',
+    ).firstMatch(message);
+    if (lowAttendanceMatch != null) {
+      return context.t(
+        'Your attendance is {percent}%, which is below the {threshold}% threshold.',
+        params: {
+          'percent': lowAttendanceMatch.group(1)!,
+          'threshold': lowAttendanceMatch.group(2)!,
+        },
+      );
+    }
+
+    final newLeaveRequestMatch = RegExp(
+      r'^(.+?) submitted a leave request for (\d{4}-\d{2}-\d{2})\.$',
+    ).firstMatch(message);
+    if (newLeaveRequestMatch != null) {
+      return context.t(
+        '{name} submitted a leave request for {date}.',
+        params: {
+          'name': newLeaveRequestMatch.group(1)!,
+          'date': newLeaveRequestMatch.group(2)!,
+        },
+      );
+    }
+
+    final leaveDecisionMatch = RegExp(
+      r'^Your leave request for (\d{4}-\d{2}-\d{2}) was (approved|rejected)\.(?: Note: (.+))?$',
+    ).firstMatch(message);
+    if (leaveDecisionMatch != null) {
+      final params = {
+        'date': leaveDecisionMatch.group(1)!,
+        'status': _statusLabel(context, leaveDecisionMatch.group(2)!),
+      };
+      final note = leaveDecisionMatch.group(3);
+      if (note != null && note.isNotEmpty) {
+        return context.t(
+          'Your leave request for {date} was {status}. Note: {note}',
+          params: {...params, 'note': note},
+        );
+      }
+      return context.t(
+        'Your leave request for {date} was {status}.',
+        params: params,
+      );
+    }
+
+    return context.t(message);
   }
 
   @override
@@ -350,7 +445,7 @@ class _NotificationCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            notification.title,
+                            context.t(notification.title),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: isUnread
@@ -362,7 +457,7 @@ class _NotificationCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          _timeAgo(notification.createdAt),
+                          _timeAgo(context, notification.createdAt),
                           style: const TextStyle(
                             fontSize: 11,
                             color: AppTheme.textMuted,
@@ -372,7 +467,7 @@ class _NotificationCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      notification.message,
+                      _localizedMessage(context, notification.message),
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppTheme.textSecondary,
@@ -396,7 +491,7 @@ class _NotificationCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            notification.type.toUpperCase(),
+                            _typeLabel(context, notification.type),
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,

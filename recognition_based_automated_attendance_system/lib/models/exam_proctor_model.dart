@@ -23,7 +23,8 @@ class DetectedObject {
       type: json['type'] ?? '',
       label: json['label'] ?? '',
       confidence: (json['confidence'] ?? 0).toDouble(),
-      bbox: (json['bbox'] as List<dynamic>?)
+      bbox:
+          (json['bbox'] as List<dynamic>?)
               ?.map((e) => (e as num).toDouble())
               .toList() ??
           [0, 0, 0, 0],
@@ -32,12 +33,12 @@ class DetectedObject {
   }
 
   Map<String, dynamic> toJson() => {
-        'type': type,
-        'label': label,
-        'confidence': confidence,
-        'bbox': bbox,
-        'color': color,
-      };
+    'type': type,
+    'label': label,
+    'confidence': confidence,
+    'bbox': bbox,
+    'color': color,
+  };
 }
 
 /// Result of an exam proctoring scan
@@ -75,13 +76,13 @@ class ExamProctorResult {
       studentName: json['student_name'],
       faceCount: json['face_count'] ?? 0,
       gazeDirection: json['gaze_direction'] ?? 'unknown',
-      detectedObjects: (json['detected_objects'] as List<dynamic>?)
+      detectedObjects:
+          (json['detected_objects'] as List<dynamic>?)
               ?.map((e) => DetectedObject.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       suspicionScore: (json['suspicion_score'] ?? 0).toDouble(),
-      violations:
-          (json['violations'] as List<dynamic>?)?.cast<String>() ?? [],
+      violations: (json['violations'] as List<dynamic>?)?.cast<String>() ?? [],
       isCheating: json['is_cheating'] ?? false,
       timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
       message: json['message'] ?? '',
@@ -89,16 +90,16 @@ class ExamProctorResult {
   }
 
   Map<String, dynamic> toJson() => {
-        'student_verified': studentVerified,
-        'student_id': studentId,
-        'student_name': studentName,
-        'face_count': faceCount,
-        'gaze_direction': gazeDirection,
-        'detected_objects': detectedObjects.map((e) => e.toJson()).toList(),
-        'suspicion_score': suspicionScore,
-        'violations': violations,
-        'is_cheating': isCheating,
-        'timestamp': timestamp.toIso8601String(),
-        'message': message,
-      };
+    'student_verified': studentVerified,
+    'student_id': studentId,
+    'student_name': studentName,
+    'face_count': faceCount,
+    'gaze_direction': gazeDirection,
+    'detected_objects': detectedObjects.map((e) => e.toJson()).toList(),
+    'suspicion_score': suspicionScore,
+    'violations': violations,
+    'is_cheating': isCheating,
+    'timestamp': timestamp.toIso8601String(),
+    'message': message,
+  };
 }

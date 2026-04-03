@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../models/attendance_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/attendance_provider.dart';
@@ -27,11 +28,16 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
   final Map<String, Attendance> _attendanceMap = {};
   bool _isLoading = false;
 
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
+
   @override
   void initState() {
     super.initState();
     _selectedDay = DateTime.now();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMonth(_focusedDay));
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _loadMonth(_focusedDay),
+    );
   }
 
   String _dateKey(DateTime dt) => DateFormat('yyyy-MM-dd').format(dt);
@@ -103,14 +109,11 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
             Container(
               width: 12,
               height: 12,
-              decoration: BoxDecoration(
-                color: item.$2,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: item.$2, shape: BoxShape.circle),
             ),
             const SizedBox(width: 6),
             Text(
-              item.$1,
+              t(item.$1),
               style: const TextStyle(
                 fontSize: 12,
                 color: AppTheme.textSecondary,
@@ -163,8 +166,8 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
                       ),
                     ),
                     if (isWeekend)
-                      const Text(
-                        'Weekend',
+                      Text(
+                        t('Weekend'),
                         style: TextStyle(
                           fontSize: 12,
                           color: AppTheme.textSecondary,
@@ -188,7 +191,9 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isWeekend ? 'No attendance on weekends' : 'No attendance record',
+                  isWeekend
+                      ? t('No attendance on weekends')
+                      : t('No attendance record'),
                   style: const TextStyle(
                     color: AppTheme.textSecondary,
                     fontSize: 14,
@@ -200,7 +205,7 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
             _AttendanceDetailRow(
               icon: Icons.circle,
               label: 'Status',
-              value: attendance.statusDisplay,
+              value: t(attendance.statusDisplay),
               valueColor: _dayColor(day) ?? AppTheme.textSecondary,
             ),
             const SizedBox(height: 10),
@@ -209,7 +214,7 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
               label: 'Check In',
               value: attendance.checkInTime != null
                   ? DateFormat('hh:mm a').format(attendance.checkInTime!)
-                  : 'N/A',
+                  : t('N/A'),
             ),
             if (attendance.checkOutTime != null) ...[
               const SizedBox(height: 10),
@@ -223,7 +228,9 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
                 icon: Icons.timer_outlined,
                 label: 'Duration',
                 value: _duration(
-                    attendance.checkInTime!, attendance.checkOutTime!),
+                  attendance.checkInTime!,
+                  attendance.checkOutTime!,
+                ),
               ),
             ],
             const SizedBox(height: 10),
@@ -265,13 +272,13 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
   String _methodLabel(String method) {
     switch (method) {
       case 'face':
-        return 'Face Recognition';
+        return t('Face Recognition');
       case 'manual':
-        return 'Manual Entry';
+        return t('Manual Entry');
       case 'qr_code':
-        return 'QR Code';
+        return t('QR Code');
       case 'room_scan':
-        return 'Room Scan';
+        return t('Room Scan');
       default:
         return method;
     }
@@ -279,12 +286,13 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
 
   Widget _buildStats() {
     final total = _attendanceMap.length;
-    final present =
-        _attendanceMap.values.where((a) => a.status == 'present').length;
-    final late =
-        _attendanceMap.values.where((a) => a.status == 'late').length;
-    final absent =
-        _attendanceMap.values.where((a) => a.status == 'absent').length;
+    final present = _attendanceMap.values
+        .where((a) => a.status == 'present')
+        .length;
+    final late = _attendanceMap.values.where((a) => a.status == 'late').length;
+    final absent = _attendanceMap.values
+        .where((a) => a.status == 'absent')
+        .length;
     final pct = total > 0 ? ((present + late) / total * 100) : 0.0;
 
     return Container(
@@ -306,8 +314,10 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: pct >= 75
                       ? AppTheme.successColor.withValues(alpha: 0.15)
@@ -330,13 +340,29 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              _StatPill(count: present, label: 'Present', color: AppTheme.successColor),
+              _StatPill(
+                count: present,
+                label: 'Present',
+                color: AppTheme.successColor,
+              ),
               const SizedBox(width: 8),
-              _StatPill(count: late, label: 'Late', color: AppTheme.warningColor),
+              _StatPill(
+                count: late,
+                label: 'Late',
+                color: AppTheme.warningColor,
+              ),
               const SizedBox(width: 8),
-              _StatPill(count: absent, label: 'Absent', color: AppTheme.errorColor),
+              _StatPill(
+                count: absent,
+                label: 'Absent',
+                color: AppTheme.errorColor,
+              ),
               const SizedBox(width: 8),
-              _StatPill(count: total, label: 'Total', color: AppTheme.primaryColor),
+              _StatPill(
+                count: total,
+                label: 'Total',
+                color: AppTheme.primaryColor,
+              ),
             ],
           ),
         ],
@@ -352,11 +378,11 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Attendance Calendar'),
+        title: Text(t('Attendance Calendar')),
         actions: [
           IconButton(
             icon: const Icon(Icons.today_rounded),
-            tooltip: 'Go to today',
+            tooltip: t('Go to today'),
             onPressed: () {
               setState(() {
                 _focusedDay = DateTime.now();
@@ -367,7 +393,7 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
+            tooltip: t('Refresh'),
             onPressed: () => _loadMonth(_focusedDay),
           ),
         ],
@@ -393,12 +419,12 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
                   ),
                 )
               : TableCalendar(
+                  locale: context.language.materialLocale.languageCode,
                   firstDay: DateTime(2024, 1, 1),
                   lastDay: DateTime.now().add(const Duration(days: 365)),
                   focusedDay: _focusedDay,
                   calendarFormat: _calendarFormat,
-                  selectedDayPredicate: (day) =>
-                      isSameDay(_selectedDay, day),
+                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                   onDaySelected: (selected, focused) {
                     setState(() {
                       _selectedDay = selected;
@@ -415,9 +441,11 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
                   calendarStyle: CalendarStyle(
                     outsideDaysVisible: false,
                     defaultTextStyle: const TextStyle(
-                        color: AppTheme.textPrimary),
+                      color: AppTheme.textPrimary,
+                    ),
                     weekendTextStyle: const TextStyle(
-                        color: AppTheme.textSecondary),
+                      color: AppTheme.textSecondary,
+                    ),
                     todayDecoration: BoxDecoration(
                       color: AppTheme.primaryColor.withValues(alpha: 0.3),
                       shape: BoxShape.circle,
@@ -447,22 +475,26 @@ class _AttendanceCalendarScreenState extends State<AttendanceCalendarScreen> {
                       Icons.chevron_right,
                       color: AppTheme.textPrimary,
                     ),
-                    formatButtonTextStyle:
-                        TextStyle(color: AppTheme.primaryLight, fontSize: 12),
+                    formatButtonTextStyle: TextStyle(
+                      color: AppTheme.primaryLight,
+                      fontSize: 12,
+                    ),
                     formatButtonDecoration: BoxDecoration(
                       border: Border.fromBorderSide(
-                        BorderSide(
-                            color: AppTheme.primaryColor, width: 1),
+                        BorderSide(color: AppTheme.primaryColor, width: 1),
                       ),
-                      borderRadius:
-                          BorderRadius.all(Radius.circular(8)),
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
                     ),
                   ),
                   daysOfWeekStyle: const DaysOfWeekStyle(
                     weekdayStyle: TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12),
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                    ),
                     weekendStyle: TextStyle(
-                        color: AppTheme.textMuted, fontSize: 12),
+                      color: AppTheme.textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                   calendarBuilders: CalendarBuilders(
                     defaultBuilder: (context, day, focusedDay) {
@@ -547,11 +579,8 @@ class _AttendanceDetailRow extends StatelessWidget {
         SizedBox(
           width: 80,
           child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppTheme.textSecondary,
-            ),
+            context.t(label),
+            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
           ),
         ),
         Expanded(
@@ -602,7 +631,7 @@ class _StatPill extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              label,
+              context.t(label),
               style: const TextStyle(
                 fontSize: 10,
                 color: AppTheme.textSecondary,

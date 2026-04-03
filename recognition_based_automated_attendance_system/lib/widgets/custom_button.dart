@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 
 /// Premium Custom Button with hover glow and gradient support
 class CustomButton extends StatefulWidget {
@@ -39,6 +41,8 @@ class _CustomButtonState extends State<CustomButton> {
 
   @override
   Widget build(BuildContext context) {
+    final translatedText = context.t(widget.text);
+
     if (widget.isOutlined) {
       return MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
@@ -73,7 +77,7 @@ class _CustomButtonState extends State<CustomButton> {
               ),
               padding: EdgeInsets.zero,
             ),
-            child: _buildChild(),
+            child: _buildChild(context, translatedText),
           ),
         ),
       );
@@ -130,13 +134,13 @@ class _CustomButtonState extends State<CustomButton> {
             padding: EdgeInsets.zero,
             elevation: 0,
           ),
-          child: _buildChild(),
+          child: _buildChild(context, translatedText),
         ),
       ),
     );
   }
 
-  Widget _buildChild() {
+  Widget _buildChild(BuildContext context, String translatedText) {
     if (widget.isLoading) {
       return const SizedBox(
         width: 22,
@@ -155,22 +159,16 @@ class _CustomButtonState extends State<CustomButton> {
           Icon(widget.icon, size: 20),
           const SizedBox(width: 10),
           Text(
-            widget.text,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
+            translatedText,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ],
       );
     }
 
     return Text(
-      widget.text,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-      ),
+      translatedText,
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
     );
   }
 }

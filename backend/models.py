@@ -37,7 +37,7 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
     phone: Optional[str] = None
     department: Optional[str] = None
-    role: Optional[str] = "student"
+    role: Optional[str] = "teacher"
 
 
 class UserLogin(BaseModel):
@@ -390,7 +390,7 @@ class AppSettings(BaseModel):
     """Parsed app settings for easy consumption"""
     late_threshold_hour: int = 9
     late_threshold_minute: int = 0
-    min_face_images: int = 3
+    min_face_images: int = 2
     max_face_images: int = 10
     attendance_alert_pct: float = 75.0
     qr_session_minutes: int = 15

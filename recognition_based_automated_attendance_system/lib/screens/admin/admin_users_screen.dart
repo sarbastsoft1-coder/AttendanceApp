@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../localization/localization_extensions.dart';
 import '../../providers/attendance_provider.dart';
 
 /// Admin Users Management Screen
@@ -14,6 +15,14 @@ class AdminUsersScreen extends StatefulWidget {
 class _AdminUsersScreenState extends State<AdminUsersScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
+
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
+
+  String _roleLabel(String role) {
+    final language = context.language;
+    return role == 'admin' ? language.tr('admin') : language.tr('user');
+  }
 
   @override
   void initState() {
@@ -38,16 +47,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Manage Users'),
+        title: Text(t('Manage Users')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadUsers,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadUsers),
         ],
       ),
       body: Column(
@@ -59,7 +65,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search users...',
+                hintText: t('Search users...'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
@@ -113,8 +119,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         const SizedBox(height: 16),
                         Text(
                           _searchQuery.isEmpty
-                              ? 'No users found'
-                              : 'No users match your search',
+                              ? t('No users found')
+                              : t('No users match your search'),
                           style: const TextStyle(
                             fontSize: 16,
                             color: AppTheme.textSecondary,
@@ -148,7 +154,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         child: ListTile(
                           contentPadding: const EdgeInsets.all(16),
                           leading: CircleAvatar(
-                            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+                            backgroundColor: AppTheme.primaryColor.withValues(
+                              alpha: 0.1,
+                            ),
                             child: Text(
                               user.fullName.isNotEmpty
                                   ? user.fullName[0].toUpperCase()
@@ -161,9 +169,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           ),
                           title: Text(
                             user.fullName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,12 +192,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: user.role == 'admin'
-                                          ? AppTheme.primaryColor.withValues(alpha: 0.1)
+                                          ? AppTheme.primaryColor.withValues(
+                                              alpha: 0.1,
+                                            )
                                           : Colors.grey.shade100,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      user.role.toUpperCase(),
+                                      _roleLabel(user.role),
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w600,
@@ -228,23 +236,30 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                               }
                             },
                             itemBuilder: (context) => [
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'view',
                                 child: Row(
                                   children: [
                                     Icon(Icons.visibility, size: 20),
                                     SizedBox(width: 8),
-                                    Text('View Details'),
+                                    Text(context.t('View Details')),
                                   ],
                                 ),
                               ),
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'delete',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.delete, size: 20, color: Colors.red),
+                                    Icon(
+                                      Icons.delete,
+                                      size: 20,
+                                      color: Colors.red,
+                                    ),
                                     SizedBox(width: 8),
-                                    Text('Delete', style: TextStyle(color: Colors.red)),
+                                    Text(
+                                      context.t('Delete'),
+                                      style: TextStyle(color: Colors.red),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -273,16 +288,19 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildDetailRow('Email', user.email),
-            _buildDetailRow('Role', user.role),
-            _buildDetailRow('Phone', user.phone ?? 'Not provided'),
-            _buildDetailRow('Department', user.department ?? 'Not provided'),
-            _buildDetailRow('Face Registered', user.hasRegisteredFace ? 'Yes' : 'No'),
+            _buildDetailRow('Role', _roleLabel(user.role)),
+            _buildDetailRow('Phone', user.phone ?? t('Not provided')),
+            _buildDetailRow('Department', user.department ?? t('Not provided')),
+            _buildDetailRow(
+              'Face Registered',
+              user.hasRegisteredFace ? t('Yes') : t('No'),
+            ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(t('Close')),
           ),
         ],
       ),
@@ -298,16 +316,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           SizedBox(
             width: 100,
             child: Text(
-              '$label:',
+              '${context.t(label)}:',
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppTheme.textSecondary,
               ),
             ),
           ),
-          Expanded(
-            child: Text(value),
-          ),
+          Expanded(child: Text(value)),
         ],
       ),
     );
@@ -317,12 +333,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete User'),
-        content: Text('Are you sure you want to delete ${user.fullName}?'),
+        title: Text(t('Delete User')),
+        content: Text(
+          t(
+            'Are you sure you want to delete {name}?',
+            params: {'name': user.fullName},
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t('Cancel')),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -332,8 +353,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               await provider.deleteUser(user.id);
               if (mounted) {
                 scaffoldMessenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('User deleted'),
+                  SnackBar(
+                    content: Text(t('User deleted')),
                     backgroundColor: AppTheme.successColor,
                   ),
                 );
@@ -342,7 +363,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.errorColor,
             ),
-            child: const Text('Delete'),
+            child: Text(t('Delete')),
           ),
         ],
       ),

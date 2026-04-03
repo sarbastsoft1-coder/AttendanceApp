@@ -1,10 +1,13 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../providers/attendance_provider.dart';
 import '../utils/camera_selector.dart';
 import '../widgets/custom_button.dart';
@@ -33,10 +36,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Future<void> _initCamera() async {
+    final t = context.t;
+
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        _showError('No cameras found');
+        _showError(t('No cameras found'));
         return;
       }
 
@@ -62,7 +67,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         });
       }
     } catch (e) {
-      _showError('Failed to initialize camera: $e');
+      _showError(
+        t('Failed to initialize camera: {error}', params: {'error': '$e'}),
+      );
     }
   }
 
@@ -105,7 +112,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       setState(() {
         _isCapturing = false;
       });
-      _showError('Failed to capture image');
+      if (!mounted) return;
+      _showError(context.t('Failed to capture image'));
     }
   }
 
@@ -126,16 +134,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (success) {
       final attendance = attendanceProvider.lastMarkedAttendance;
       _showSuccessDialog(
-        attendance?.displayName ?? 'User',
+        attendance?.displayName ?? context.t('User'),
         attendance?.confidence ?? 0,
         attendance?.status ?? 'present',
       );
     } else {
-      _showError(attendanceProvider.error ?? 'Failed to mark attendance');
+      _showError(
+        attendanceProvider.error ?? context.t('Failed to mark attendance'),
+      );
     }
   }
 
   void _showSuccessDialog(String name, double confidence, String status) {
+    final t = context.t;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -162,13 +173,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Welcome, $name!',
+              t('Welcome, {name}!', params: {'name': name}),
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              status == 'present' ? 'Check-In Recorded' : 'Recorded as Late',
+              status == 'present'
+                  ? t('Check-In Recorded')
+                  : t('Recorded as Late'),
               style: TextStyle(
                 fontSize: 16,
                 color: status == 'present'
@@ -185,7 +198,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                'Confidence: ${(confidence * 100).toStringAsFixed(1)}%',
+                t(
+                  'Confidence: {value}%',
+                  params: {'value': (confidence * 100).toStringAsFixed(1)},
+                ),
                 style: const TextStyle(
                   color: AppTheme.primaryColor,
                   fontWeight: FontWeight.w600,
@@ -202,7 +218,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 Navigator.pop(context); // Close dialog
                 Navigator.pop(context); // Go back to home
               },
-              child: const Text('Done'),
+              child: Text(t('Done')),
             ),
           ),
         ],
@@ -218,9 +234,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Take Attendance'),
+        title: Text(t('Take Attendance')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -229,7 +247,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           if (_isCameraReady)
             IconButton(
               icon: const Icon(Icons.rotate_right),
-              tooltip: 'Rotate Camera',
+              tooltip: t('Rotate Camera'),
               onPressed: () {
                 setState(() {
                   _previewQuarterTurns = (_previewQuarterTurns + 1) % 4;
@@ -244,14 +262,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             color: AppTheme.infoColor.withValues(alpha: 0.1),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.face, color: AppTheme.infoColor),
-                SizedBox(width: 12),
+                const Icon(Icons.face, color: AppTheme.infoColor),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Position your face within the circle and capture',
-                    style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
+                    t('Position your face within the circle and capture'),
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ],

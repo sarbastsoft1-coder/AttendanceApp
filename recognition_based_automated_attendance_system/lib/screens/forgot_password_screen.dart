@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_textfield.dart';
@@ -34,6 +35,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   String? _resetToken; // Token returned by backend (local/desktop mode)
   bool _showNewPassword = false;
   bool _showConfirmPassword = false;
+
+  String t(String text, {Map<String, String> params = const {}}) =>
+      context.t(text, params: params);
 
   @override
   void dispose() {
@@ -73,12 +77,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     if (token != null) {
       _showSnack(
-        'Reset token generated. It has been pre-filled below.',
+        t('Reset token generated. It has been pre-filled below.'),
         isError: false,
       );
     } else {
       _showSnack(
-        'If that email exists, a reset token has been sent.',
+        t('If that email exists, a reset token has been sent.'),
         isError: false,
       );
     }
@@ -100,11 +104,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (!mounted) return;
 
     if (success) {
-      _showSnack('Password reset successfully! Please log in.', isError: false);
+      _showSnack(
+        t('Password reset successfully! Please log in.'),
+        isError: false,
+      );
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) Navigator.pushReplacementNamed(context, '/login');
     } else {
-      _showSnack(auth.error ?? 'Failed to reset password', isError: true);
+      _showSnack(auth.error ?? t('Failed to reset password'), isError: true);
     }
   }
 
@@ -127,7 +134,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Forgot Password'),
+        title: Text(t('Forgot Password')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -179,7 +186,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       onToggleNew: () =>
                           setState(() => _showNewPassword = !_showNewPassword),
                       onToggleConfirm: () => setState(
-                          () => _showConfirmPassword = !_showConfirmPassword),
+                        () => _showConfirmPassword = !_showConfirmPassword,
+                      ),
                       onSubmit: _resetPassword,
                       hasPrefilledToken: _resetToken != null,
                     ),
@@ -203,7 +211,11 @@ class _StepIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _StepDot(number: 1, isActive: currentStep == 1, isDone: currentStep > 1),
+        _StepDot(
+          number: 1,
+          isActive: currentStep == 1,
+          isDone: currentStep > 1,
+        ),
         Expanded(
           child: Container(
             height: 2,
@@ -266,7 +278,9 @@ class _StepDot extends StatelessWidget {
         color: bg,
         shape: BoxShape.circle,
         border: Border.all(
-          color: isActive || isDone ? AppTheme.primaryColor : AppTheme.glassBorder,
+          color: isActive || isDone
+              ? AppTheme.primaryColor
+              : AppTheme.glassBorder,
           width: 2,
         ),
       ),
@@ -296,8 +310,8 @@ class _EmailStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Reset Your Password',
+        Text(
+          context.t('Reset Your Password'),
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -305,9 +319,10 @@ class _EmailStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Enter the email address associated with your account. '
-          'A password reset token will be generated.',
+        Text(
+          context.t(
+            'Enter the email address associated with your account. A password reset token will be generated.',
+          ),
           style: TextStyle(
             fontSize: 14,
             color: AppTheme.textSecondary,
@@ -322,16 +337,18 @@ class _EmailStep extends StatelessWidget {
             children: [
               CustomTextField(
                 controller: emailController,
-                label: 'Email Address',
-                hint: 'Enter your registered email',
+                label: context.t('Email'),
+                hint: context.t('Enter your registered email'),
                 prefixIcon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) {
-                    return 'Please enter your email address';
+                    return context.t('Please enter your email address');
                   }
-                  if (!RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$').hasMatch(val.trim())) {
-                    return 'Please enter a valid email address';
+                  if (!RegExp(
+                    r'^[\w\.-]+@[\w\.-]+\.\w+$',
+                  ).hasMatch(val.trim())) {
+                    return context.t('Please enter a valid email address');
                   }
                   return null;
                 },
@@ -341,7 +358,7 @@ class _EmailStep extends StatelessWidget {
               Consumer<AuthProvider>(
                 builder: (context, auth, _) {
                   return CustomButton(
-                    text: 'Get Reset Token',
+                    text: context.t('Get Reset Token'),
                     isLoading: auth.isLoading,
                     onPressed: onSubmit,
                     icon: Icons.send_rounded,
@@ -353,8 +370,8 @@ class _EmailStep extends StatelessWidget {
               Center(
                 child: TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    'Back to Login',
+                  child: Text(
+                    context.t('Back to Login'),
                     style: TextStyle(color: AppTheme.textSecondary),
                   ),
                 ),
@@ -375,16 +392,16 @@ class _EmailStep extends StatelessWidget {
               color: AppTheme.infoColor.withValues(alpha: 0.3),
             ),
           ),
-          child: const Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.info_outline, color: AppTheme.infoColor, size: 20),
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'In this local deployment, the reset token is returned '
-                  'directly and pre-filled for convenience. In production, '
-                  'it would be sent to your email.',
+                  context.t(
+                    'In this local deployment, the reset token is returned directly and pre-filled for convenience. In production, it would be sent to your email.',
+                  ),
                   style: TextStyle(
                     fontSize: 13,
                     color: AppTheme.textSecondary,
@@ -435,8 +452,8 @@ class _ResetStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Set New Password',
+        Text(
+          context.t('Set New Password'),
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -444,8 +461,8 @@ class _ResetStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Enter your reset token and choose a new password.',
+        Text(
+          context.t('Enter your reset token and choose a new password.'),
           style: TextStyle(
             fontSize: 14,
             color: AppTheme.textSecondary,
@@ -460,8 +477,8 @@ class _ResetStep extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Reset Token field
-              const Text(
-                'Reset Token',
+              Text(
+                context.t('Reset Token'),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -472,18 +489,18 @@ class _ResetStep extends StatelessWidget {
               TextFormField(
                 controller: tokenController,
                 decoration: InputDecoration(
-                  hintText: 'Paste your reset token here',
+                  hintText: context.t('Paste your reset token here'),
                   prefixIcon: const Icon(Icons.vpn_key_outlined),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.copy, size: 18),
-                    tooltip: 'Copy token',
+                    tooltip: context.t('Copy token'),
                     onPressed: () {
                       Clipboard.setData(
                         ClipboardData(text: tokenController.text),
                       );
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Token copied'),
+                        SnackBar(
+                          content: Text(context.t('Token copied')),
                           duration: Duration(seconds: 1),
                         ),
                       );
@@ -492,7 +509,7 @@ class _ResetStep extends StatelessWidget {
                 ),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) {
-                    return 'Please enter the reset token';
+                    return context.t('Please enter the reset token');
                   }
                   return null;
                 },
@@ -500,13 +517,16 @@ class _ResetStep extends StatelessWidget {
 
               if (hasPrefilledToken) ...[
                 const SizedBox(height: 8),
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.check_circle,
-                        size: 14, color: AppTheme.successColor),
+                    Icon(
+                      Icons.check_circle,
+                      size: 14,
+                      color: AppTheme.successColor,
+                    ),
                     SizedBox(width: 6),
                     Text(
-                      'Token pre-filled from backend response',
+                      context.t('Token pre-filled from backend response'),
                       style: TextStyle(
                         fontSize: 12,
                         color: AppTheme.successColor,
@@ -518,8 +538,8 @@ class _ResetStep extends StatelessWidget {
               const SizedBox(height: 24),
 
               // New Password
-              const Text(
-                'New Password',
+              Text(
+                context.t('New Password'),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -531,7 +551,7 @@ class _ResetStep extends StatelessWidget {
                 controller: newPasswordController,
                 obscureText: !showNewPassword,
                 decoration: InputDecoration(
-                  hintText: 'Enter new password (min 6 characters)',
+                  hintText: context.t('Enter new password (min 6 characters)'),
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
                     icon: Icon(
@@ -542,10 +562,10 @@ class _ResetStep extends StatelessWidget {
                 ),
                 validator: (val) {
                   if (val == null || val.isEmpty) {
-                    return 'Please enter a new password';
+                    return context.t('Please enter a new password');
                   }
                   if (val.length < 6) {
-                    return 'Password must be at least 6 characters';
+                    return context.t('Password must be at least 6 characters');
                   }
                   return null;
                 },
@@ -553,8 +573,8 @@ class _ResetStep extends StatelessWidget {
               const SizedBox(height: 16),
 
               // Confirm Password
-              const Text(
-                'Confirm New Password',
+              Text(
+                context.t('Confirm New Password'),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -566,7 +586,7 @@ class _ResetStep extends StatelessWidget {
                 controller: confirmPasswordController,
                 obscureText: !showConfirmPassword,
                 decoration: InputDecoration(
-                  hintText: 'Re-enter your new password',
+                  hintText: context.t('Re-enter your new password'),
                   prefixIcon: const Icon(Icons.check_circle_outline),
                   suffixIcon: IconButton(
                     icon: Icon(
@@ -579,10 +599,10 @@ class _ResetStep extends StatelessWidget {
                 ),
                 validator: (val) {
                   if (val == null || val.isEmpty) {
-                    return 'Please confirm your new password';
+                    return context.t('Please confirm your new password');
                   }
                   if (val != newPasswordController.text) {
-                    return 'Passwords do not match';
+                    return context.t('Passwords do not match');
                   }
                   return null;
                 },
@@ -592,7 +612,7 @@ class _ResetStep extends StatelessWidget {
               Consumer<AuthProvider>(
                 builder: (context, auth, _) {
                   return CustomButton(
-                    text: 'Reset Password',
+                    text: context.t('Reset Password'),
                     isLoading: auth.isLoading,
                     onPressed: onSubmit,
                     icon: Icons.lock_reset_rounded,

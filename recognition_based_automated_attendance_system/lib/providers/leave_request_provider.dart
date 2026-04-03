@@ -91,7 +91,8 @@ class LeaveRequestProvider with ChangeNotifier {
         ApiConfig.leaveRequestById(leaveId),
         data: {
           'status': status,
-          if (reviewNote != null && reviewNote.isNotEmpty) 'review_note': reviewNote,
+          if (reviewNote != null && reviewNote.isNotEmpty)
+            'review_note': reviewNote,
         },
       );
 

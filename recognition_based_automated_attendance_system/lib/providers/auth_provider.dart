@@ -7,7 +7,6 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../models/settings_model.dart';
 
-
 /// Authentication Provider - Handles login, register, and token management
 class AuthProvider with ChangeNotifier {
   final ApiService _api = ApiService();
@@ -68,7 +67,7 @@ class AuthProvider with ChangeNotifier {
           'password': password,
           'phone': phone,
           'department': department,
-          'role': 'student',
+          'role': 'teacher',
         },
       );
 
@@ -101,10 +100,7 @@ class AuthProvider with ChangeNotifier {
     try {
       final response = await _api.post(
         ApiConfig.authLogin,
-        data: {
-          'email': email,
-          'password': password,
-        },
+        data: {'email': email, 'password': password},
       );
 
       final data = response.data;
@@ -144,8 +140,8 @@ class AuthProvider with ChangeNotifier {
 
   /// Register face with multiple images
   Future<bool> registerFace(List<File> images) async {
-    if (images.length < 3) {
-      _error = 'Please capture at least 3 images';
+    if (images.length < 2) {
+      _error = 'Please capture at least 2 images';
       notifyListeners();
       return false;
     }
@@ -263,10 +259,7 @@ class AuthProvider with ChangeNotifier {
     try {
       await _api.post(
         ApiConfig.resetPassword,
-        data: {
-          'token': token,
-          'new_password': newPassword,
-        },
+        data: {'token': token, 'new_password': newPassword},
       );
       _setLoading(false);
       return true;

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
 
 /// Animated collapsible sidebar navigation for desktop
@@ -64,6 +66,8 @@ class _SidebarNavigationState extends State<SidebarNavigation>
 
   @override
   Widget build(BuildContext context) {
+    final language = context.language;
+
     return AnimatedBuilder(
       animation: _widthAnimation,
       builder: (context, child) {
@@ -78,38 +82,36 @@ class _SidebarNavigationState extends State<SidebarNavigation>
           child: Column(
             children: [
               const SizedBox(height: 16),
-              // ─── Logo ─────────────────────────
-              _buildLogo(),
+              _buildLogo(language),
               const SizedBox(height: 32),
-              // ─── Navigation Items ────────────
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
                       _SidebarItem(
                         icon: Icons.dashboard_rounded,
-                        label: 'Dashboard',
+                        label: language.tr('dashboard'),
                         isSelected: widget.currentIndex == 0,
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(0),
                       ),
                       _SidebarItem(
                         icon: Icons.history_rounded,
-                        label: 'History',
+                        label: language.tr('history'),
                         isSelected: widget.currentIndex == 1,
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(1),
                       ),
                       _SidebarItem(
                         icon: Icons.qr_code_scanner_rounded,
-                        label: 'Room Scanner',
+                        label: language.tr('roomScanner'),
                         isSelected: widget.currentIndex == 2,
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(2),
                       ),
                       _SidebarItem(
                         icon: Icons.group_add_rounded,
-                        label: 'Batch Register',
+                        label: language.tr('batchRegister'),
                         isSelected: widget.currentIndex == 3,
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(3),
@@ -125,26 +127,25 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                       const SizedBox(height: 8),
                       _SidebarItem(
                         icon: Icons.person_rounded,
-                        label: 'Profile',
+                        label: language.tr('profile'),
                         isSelected: widget.currentIndex == 4,
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(4),
                       ),
                       _SidebarItem(
                         icon: Icons.notifications_outlined,
-                        label: 'Notifications',
+                        label: language.tr('notifications'),
                         isSelected: widget.currentIndex == 8,
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(8),
                       ),
                       _SidebarItem(
                         icon: Icons.event_note_rounded,
-                        label: 'Leave Requests',
+                        label: language.tr('leaveRequests'),
                         isSelected: widget.currentIndex == 9,
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(9),
                       ),
-                      // Management section (visible to all)
                       const SizedBox(height: 8),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -161,9 +162,9 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                             bottom: 4,
                           ),
                           child: Align(
-                            alignment: Alignment.centerLeft,
+                            alignment: AlignmentDirectional.centerStart,
                             child: Text(
-                              'MANAGEMENT',
+                              language.tr('management'),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
@@ -175,19 +176,18 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                         ),
                       _SidebarItem(
                         icon: Icons.edit_note_rounded,
-                        label: 'Edit Attendance',
+                        label: language.tr('editAttendance'),
                         isSelected: widget.currentIndex == 6,
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(6),
                       ),
                       _SidebarItem(
                         icon: Icons.class_rounded,
-                        label: 'Classes',
+                        label: language.tr('classes'),
                         isSelected: widget.currentIndex == 7,
                         isExpanded: _isExpanded,
                         onTap: () => widget.onItemSelected(7),
                       ),
-                      // Admin section (admin-only)
                       Consumer<AuthProvider>(
                         builder: (context, auth, _) {
                           if (!auth.isAdmin) return const SizedBox.shrink();
@@ -195,7 +195,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                             children: [
                               _SidebarItem(
                                 icon: Icons.admin_panel_settings_rounded,
-                                label: 'Admin Panel',
+                                label: language.tr('adminPanel'),
                                 isSelected: widget.currentIndex == 5,
                                 isExpanded: _isExpanded,
                                 onTap: () => widget.onItemSelected(5),
@@ -208,11 +208,9 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                   ),
                 ),
               ),
-              // ─── Collapse Toggle ──────────────
-              _buildCollapseToggle(),
+              _buildCollapseToggle(language),
               const SizedBox(height: 8),
-              // ─── User Info + Logout ───────────
-              _buildUserSection(),
+              _buildUserSection(language),
               const SizedBox(height: 16),
             ],
           ),
@@ -221,7 +219,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
     );
   }
 
-  Widget _buildLogo() {
+  Widget _buildLogo(dynamic language) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -252,7 +250,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'FaceAttend',
                     style: TextStyle(
                       fontSize: 16,
@@ -262,8 +260,11 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                     ),
                   ),
                   Text(
-                    'Teacher Portal',
-                    style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                    language.tr('teacherPortal'),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -274,7 +275,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
     );
   }
 
-  Widget _buildCollapseToggle() {
+  Widget _buildCollapseToggle(dynamic language) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: InkWell(
@@ -302,9 +303,12 @@ class _SidebarNavigationState extends State<SidebarNavigation>
               ),
               if (_isExpanded) ...[
                 const SizedBox(width: 10),
-                const Text(
-                  'Collapse',
-                  style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                Text(
+                  language.tr('collapse'),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
               ],
             ],
@@ -314,7 +318,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
     );
   }
 
-  Widget _buildUserSection() {
+  Widget _buildUserSection(dynamic language) {
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         final user = auth.user;
@@ -359,7 +363,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            user?.fullName ?? 'User',
+                            user?.fullName ?? language.tr('user'),
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -369,7 +373,7 @@ class _SidebarNavigationState extends State<SidebarNavigation>
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            'Sign out',
+                            language.tr('signOut'),
                             style: TextStyle(
                               fontSize: 11,
                               color: AppTheme.errorColor.withValues(alpha: 0.8),
@@ -394,7 +398,6 @@ class _SidebarNavigationState extends State<SidebarNavigation>
   }
 }
 
-/// Individual sidebar navigation item
 class _SidebarItem extends StatefulWidget {
   final IconData icon;
   final String label;

@@ -14,7 +14,7 @@ class AppSettings {
   const AppSettings({
     this.lateThresholdHour = 9,
     this.lateThresholdMinute = 0,
-    this.minFaceImages = 3,
+    this.minFaceImages = 2,
     this.maxFaceImages = 10,
     this.attendanceAlertPct = 75.0,
     this.qrSessionMinutes = 15,
@@ -26,16 +26,31 @@ class AppSettings {
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     return AppSettings(
-      lateThresholdHour: int.tryParse(json['late_threshold_hour']?.toString() ?? '9') ?? 9,
-      lateThresholdMinute: int.tryParse(json['late_threshold_minute']?.toString() ?? '0') ?? 0,
-      minFaceImages: int.tryParse(json['min_face_images']?.toString() ?? '3') ?? 3,
-      maxFaceImages: int.tryParse(json['max_face_images']?.toString() ?? '10') ?? 10,
+      lateThresholdHour:
+          int.tryParse(json['late_threshold_hour']?.toString() ?? '9') ?? 9,
+      lateThresholdMinute:
+          int.tryParse(json['late_threshold_minute']?.toString() ?? '0') ?? 0,
+      minFaceImages:
+          int.tryParse(json['min_face_images']?.toString() ?? '2') ?? 2,
+      maxFaceImages:
+          int.tryParse(json['max_face_images']?.toString() ?? '10') ?? 10,
       attendanceAlertPct:
-          double.tryParse(json['attendance_alert_pct']?.toString() ?? '75') ?? 75.0,
-      qrSessionMinutes: int.tryParse(json['qr_session_minutes']?.toString() ?? '15') ?? 15,
-      allowManualEntry: _parseBool(json['allow_manual_entry'], defaultValue: true),
-      allowQrAttendance: _parseBool(json['allow_qr_attendance'], defaultValue: true),
-      allowFaceAttendance: _parseBool(json['allow_face_attendance'], defaultValue: true),
+          double.tryParse(json['attendance_alert_pct']?.toString() ?? '75') ??
+          75.0,
+      qrSessionMinutes:
+          int.tryParse(json['qr_session_minutes']?.toString() ?? '15') ?? 15,
+      allowManualEntry: _parseBool(
+        json['allow_manual_entry'],
+        defaultValue: true,
+      ),
+      allowQrAttendance: _parseBool(
+        json['allow_qr_attendance'],
+        defaultValue: true,
+      ),
+      allowFaceAttendance: _parseBool(
+        json['allow_face_attendance'],
+        defaultValue: true,
+      ),
       appName: json['app_name']?.toString() ?? 'Face Attendance System',
     );
   }
@@ -275,9 +290,8 @@ class PaginatedAuditLog {
 
   factory PaginatedAuditLog.fromJson(Map<String, dynamic> json) {
     return PaginatedAuditLog(
-      items: (json['items'] as List?)
-              ?.map((e) => AuditLog.fromJson(e))
-              .toList() ??
+      items:
+          (json['items'] as List?)?.map((e) => AuditLog.fromJson(e)).toList() ??
           [],
       total: json['total'] ?? 0,
       page: json['page'] ?? 1,
@@ -413,15 +427,18 @@ class AnalyticsData {
     return AnalyticsData(
       periodDays: json['period_days'] ?? 30,
       summary: AnalyticsSummary.fromJson(json['summary'] ?? {}),
-      dailyTrend: (json['daily_trend'] as List?)
+      dailyTrend:
+          (json['daily_trend'] as List?)
               ?.map((e) => DailyTrend.fromJson(e))
               .toList() ??
           [],
-      departmentBreakdown: (json['department_breakdown'] as List?)
+      departmentBreakdown:
+          (json['department_breakdown'] as List?)
               ?.map((e) => DepartmentBreakdown.fromJson(e))
               .toList() ??
           [],
-      methodBreakdown: (json['method_breakdown'] as List?)
+      methodBreakdown:
+          (json['method_breakdown'] as List?)
               ?.map((e) => MethodBreakdown.fromJson(e))
               .toList() ??
           [],

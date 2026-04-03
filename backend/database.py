@@ -43,8 +43,8 @@ class User(Base):
     phone = Column(String(20), nullable=True)
     department = Column(String(100), nullable=True)
 
-    # Role: admin, teacher, student, employee
-    role = Column(String(50), default="student")
+    # Role: admin, teacher, student, managed_student
+    role = Column(String(50), default="teacher")
 
     # Face recognition data
     face_encoding = Column(Text, nullable=True)  # JSON encoded face encoding
@@ -311,7 +311,7 @@ def init_db():
         defaults = [
             ("late_threshold_hour",   "9",    "Hour (0-23) after which check-in is considered late"),
             ("late_threshold_minute", "0",    "Minute after which check-in is considered late"),
-            ("min_face_images",       "3",    "Minimum face images required for registration"),
+            ("min_face_images",       "2",    "Minimum face images required for registration"),
             ("max_face_images",       "10",   "Maximum face images allowed for registration"),
             ("attendance_alert_pct",  "75",   "Attendance percentage below which an alert is triggered"),
             ("qr_session_minutes",    "15",   "Minutes a QR attendance session stays valid"),

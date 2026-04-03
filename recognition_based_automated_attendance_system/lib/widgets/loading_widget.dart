@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 
 /// Premium Loading Widget with branded spinner
 class LoadingWidget extends StatelessWidget {
@@ -7,12 +9,7 @@ class LoadingWidget extends StatelessWidget {
   final Color? color;
   final double size;
 
-  const LoadingWidget({
-    super.key,
-    this.message,
-    this.color,
-    this.size = 36,
-  });
+  const LoadingWidget({super.key, this.message, this.color, this.size = 36});
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +30,7 @@ class LoadingWidget extends StatelessWidget {
           if (message != null) ...[
             const SizedBox(height: 16),
             Text(
-              message!,
+              context.t(message!),
               style: TextStyle(
                 color: color ?? AppTheme.textSecondary,
                 fontSize: 14,
@@ -72,10 +69,7 @@ class LoadingOverlay extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(32),
                 decoration: AppTheme.glassDecoration(borderRadius: 20),
-                child: LoadingWidget(
-                  message: message,
-                  color: Colors.white,
-                ),
+                child: LoadingWidget(message: message, color: Colors.white),
               ),
             ),
           ),

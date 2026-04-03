@@ -5,14 +5,14 @@ import 'package:google_fonts/google_fonts.dart';
 /// Supports both dark (default) and light modes.
 class AppTheme {
   // ─── Primary Colors ──────────────────────────────────────
-  static const Color primaryColor = Color(0xFF7C3AED);     // Violet
+  static const Color primaryColor = Color(0xFF7C3AED); // Violet
   static const Color primaryDark = Color(0xFF6D28D9);
   static const Color primaryLight = Color(0xFFA78BFA);
   static const Color primaryGlow = Color(0x407C3AED);
 
   // ─── Secondary / Accent ──────────────────────────────────
-  static const Color secondaryColor = Color(0xFF06B6D4);   // Cyan
-  static const Color accentColor = Color(0xFFF59E0B);      // Amber
+  static const Color secondaryColor = Color(0xFF06B6D4); // Cyan
+  static const Color accentColor = Color(0xFFF59E0B); // Amber
   static const Color accentGlow = Color(0x40F59E0B);
 
   // ─── Status Colors ───────────────────────────────────────
@@ -22,16 +22,16 @@ class AppTheme {
   static const Color infoColor = Color(0xFF3B82F6);
 
   // ─── Dark Surfaces ───────────────────────────────────────
-  static const Color bgDeep = Color(0xFF0A0E1A);           // Deepest
-  static const Color bgBase = Color(0xFF111827);            // Base background
-  static const Color bgCard = Color(0xFF1A1F2E);           // Card surface
-  static const Color bgElevated = Color(0xFF232A3B);       // Elevated surface
-  static const Color bgSidebar = Color(0xFF0F1420);        // Sidebar bg
+  static const Color bgDeep = Color(0xFF0A0E1A); // Deepest
+  static const Color bgBase = Color(0xFF111827); // Base background
+  static const Color bgCard = Color(0xFF1A1F2E); // Card surface
+  static const Color bgElevated = Color(0xFF232A3B); // Elevated surface
+  static const Color bgSidebar = Color(0xFF0F1420); // Sidebar bg
 
   // ─── Glassmorphism ───────────────────────────────────────
-  static const Color glassBg = Color(0x1AFFFFFF);          // 10% white
-  static const Color glassBorder = Color(0x33FFFFFF);      // 20% white
-  static const Color glassHighlight = Color(0x0DFFFFFF);   // 5% white
+  static const Color glassBg = Color(0x1AFFFFFF); // 10% white
+  static const Color glassBorder = Color(0x33FFFFFF); // 20% white
+  static const Color glassHighlight = Color(0x0DFFFFFF); // 5% white
 
   // ─── Text Colors ─────────────────────────────────────────
   static const Color textPrimary = Color(0xFFF1F5F9);
@@ -84,10 +84,7 @@ class AppTheme {
     return BoxDecoration(
       color: bgColor ?? glassBg,
       borderRadius: BorderRadius.circular(borderRadius),
-      border: Border.all(
-        color: borderColor ?? glassBorder,
-        width: 1,
-      ),
+      border: Border.all(color: borderColor ?? glassBorder, width: 1),
     );
   }
 
@@ -100,7 +97,8 @@ class AppTheme {
       color: color ?? bgCard,
       borderRadius: BorderRadius.circular(borderRadius),
       border: Border.all(color: glassBorder, width: 0.5),
-      boxShadow: shadow ??
+      boxShadow:
+          shadow ??
           [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.3),
@@ -155,18 +153,9 @@ class AppTheme {
         fontWeight: FontWeight.w500,
         color: textPrimary,
       ),
-      bodyLarge: GoogleFonts.inter(
-        fontSize: 16,
-        color: textPrimary,
-      ),
-      bodyMedium: GoogleFonts.inter(
-        fontSize: 14,
-        color: textSecondary,
-      ),
-      bodySmall: GoogleFonts.inter(
-        fontSize: 12,
-        color: textLight,
-      ),
+      bodyLarge: GoogleFonts.inter(fontSize: 16, color: textPrimary),
+      bodyMedium: GoogleFonts.inter(fontSize: 14, color: textSecondary),
+      bodySmall: GoogleFonts.inter(fontSize: 12, color: textLight),
     ),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
@@ -192,28 +181,18 @@ class AppTheme {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 0,
-        textStyle: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-        ),
+        textStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: primaryLight,
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         side: const BorderSide(color: primaryColor, width: 1.5),
-        textStyle: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-        ),
+        textStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -268,10 +247,7 @@ class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       behavior: SnackBarBehavior.floating,
     ),
-    dividerTheme: const DividerThemeData(
-      color: glassBorder,
-      thickness: 0.5,
-    ),
+    dividerTheme: const DividerThemeData(color: glassBorder, thickness: 0.5),
     checkboxTheme: CheckboxThemeData(
       fillColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return primaryColor;
@@ -283,14 +259,14 @@ class AppTheme {
   );
 
   // ─── Light Surface Colors ────────────────────────────────
-  static const Color lightBgBase      = Color(0xFFF8FAFC);
-  static const Color lightBgCard      = Color(0xFFFFFFFF);
-  static const Color lightBgElevated  = Color(0xFFF1F5F9);
-  static const Color lightBgSidebar   = Color(0xFFFFFFFF);
+  static const Color lightBgBase = Color(0xFFF8FAFC);
+  static const Color lightBgCard = Color(0xFFFFFFFF);
+  static const Color lightBgElevated = Color(0xFFF1F5F9);
+  static const Color lightBgSidebar = Color(0xFFFFFFFF);
   static const Color lightTextPrimary = Color(0xFF1E293B);
   static const Color lightTextSecondary = Color(0xFF64748B);
-  static const Color lightTextMuted   = Color(0xFF94A3B8);
-  static const Color lightBorder      = Color(0xFFE2E8F0);
+  static const Color lightTextMuted = Color(0xFF94A3B8);
+  static const Color lightBorder = Color(0xFFE2E8F0);
 
   // ─── Light Theme ─────────────────────────────────────────
   static ThemeData lightTheme = ThemeData(
@@ -431,10 +407,7 @@ class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       behavior: SnackBarBehavior.floating,
     ),
-    dividerTheme: const DividerThemeData(
-      color: lightBorder,
-      thickness: 1,
-    ),
+    dividerTheme: const DividerThemeData(color: lightBorder, thickness: 1),
     checkboxTheme: CheckboxThemeData(
       fillColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return primaryColor;
@@ -452,7 +425,8 @@ class AppTheme {
   );
 
   /// Returns a card decoration that adapts to the current brightness
-  static BoxDecoration adaptiveCardDecoration(BuildContext context, {
+  static BoxDecoration adaptiveCardDecoration(
+    BuildContext context, {
     double borderRadius = 16,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;

@@ -1,11 +1,16 @@
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+
 import '../config/app_theme.dart';
+import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
+import '../providers/language_provider.dart';
 import '../widgets/custom_button.dart';
+import '../widgets/language_selector.dart';
 
 /// Premium Profile Screen — Two-column layout for desktop
 class ProfileScreen extends StatefulWidget {
@@ -30,20 +35,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: _isDesktop ? null : AppBar(title: const Text('Profile')),
+      appBar: _isDesktop ? null : AppBar(title: Text(context.tr('profile'))),
       body: content,
     );
   }
 
   Widget _buildContent() {
+    final language = context.language;
+
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         final user = auth.user;
         if (user == null) {
-          return const Center(
+          return Center(
             child: Text(
-              'Not logged in',
-              style: TextStyle(color: AppTheme.textSecondary),
+              language.tr('notLoggedIn'),
+              style: const TextStyle(color: AppTheme.textSecondary),
             ),
           );
         }
@@ -65,10 +72,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Column — Avatar & Info
         SizedBox(width: 320, child: _buildProfileCard(auth, user)),
         const SizedBox(width: 24),
-        // Right Column — Actions & Settings
         Expanded(child: _buildActionsPanel(auth)),
       ],
     );
@@ -85,12 +90,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileCard(AuthProvider auth, dynamic user) {
+    final language = context.language;
+
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: AppTheme.cardDecoration(),
       child: Column(
         children: [
-          // Avatar
           Container(
                 width: 90,
                 height: 90,
@@ -136,7 +142,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
           ).animate().fadeIn(delay: 250.ms),
           const SizedBox(height: 6),
-          // Role Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
@@ -152,7 +157,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             child: Text(
-              auth.isAdmin ? 'Admin' : 'Teacher',
+              auth.isAdmin ? language.tr('admin') : language.tr('user'),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -165,24 +170,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 24),
           const Divider(color: AppTheme.glassBorder),
           const SizedBox(height: 16),
-
-          // Info rows
           if (user.phone != null && user.phone!.isNotEmpty)
             _InfoRow(
               icon: Icons.phone_outlined,
-              label: 'Phone',
+              label: language.tr('phone'),
               value: user.phone!,
             ),
           if (user.department != null && user.department!.isNotEmpty)
             _InfoRow(
               icon: Icons.business_outlined,
-              label: 'Department',
+              label: language.tr('department'),
               value: user.department!,
             ),
           _InfoRow(
             icon: Icons.face_retouching_natural,
-            label: 'Face Registered',
-            value: auth.hasRegisteredFace ? 'Yes' : 'No',
+            label: language.tr('faceRegistered'),
+            value: auth.hasRegisteredFace
+                ? language.tr('yes')
+                : language.tr('no'),
             valueColor: auth.hasRegisteredFace
                 ? AppTheme.successColor
                 : AppTheme.errorColor,
@@ -193,13 +198,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildActionsPanel(AuthProvider auth) {
+    final language = context.language;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header
-        const Text(
-          'Account',
-          style: TextStyle(
+        Text(
+          language.tr('account'),
+          style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             color: AppTheme.textPrimary,
@@ -207,22 +213,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ).animate().fadeIn(delay: 200.ms),
         const SizedBox(height: 6),
-        const Text(
-          'Manage your profile and settings',
-          style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+        Text(
+          language.tr('manageProfileSettings'),
+          style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
         ).animate().fadeIn(delay: 250.ms),
         const SizedBox(height: 24),
-
-        // Actions Grid
         Container(
           padding: const EdgeInsets.all(24),
           decoration: AppTheme.cardDecoration(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Actions',
-                style: TextStyle(
+              Text(
+                language.tr('actions'),
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary,
@@ -231,40 +235,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 16),
               _ActionItem(
                 icon: Icons.edit_rounded,
-                label: 'Edit Profile',
-                subtitle: 'Update your name, phone, and department',
+                label: language.tr('editProfile'),
+                subtitle: language.tr('updateNamePhoneDepartment'),
                 color: AppTheme.primaryColor,
                 onTap: () => Navigator.pushNamed(context, '/edit-profile'),
               ),
               const SizedBox(height: 10),
               _ActionItem(
                 icon: Icons.lock_outline_rounded,
-                label: 'Change Password',
-                subtitle: 'Update your account password',
+                label: language.tr('changePassword'),
+                subtitle: language.tr('updateAccountPassword'),
                 color: AppTheme.infoColor,
                 onTap: () => Navigator.pushNamed(context, '/change-password'),
               ),
               const SizedBox(height: 10),
               _ActionItem(
                 icon: Icons.face_retouching_natural,
-                label: 'Re-register Face',
-                subtitle: 'Update your facial recognition data',
+                label: language.tr('reregisterFace'),
+                subtitle: language.tr('updateFaceData'),
                 color: AppTheme.secondaryColor,
                 onTap: () => Navigator.pushNamed(context, '/face-capture'),
               ),
               const SizedBox(height: 10),
               _ActionItem(
                 icon: Icons.notifications_outlined,
-                label: 'Notifications',
-                subtitle: 'View attendance and system updates',
+                label: language.tr('notifications'),
+                subtitle: language.tr('viewAttendanceUpdates'),
                 color: Colors.amber,
                 onTap: () => Navigator.pushNamed(context, '/notifications'),
               ),
               const SizedBox(height: 10),
               _ActionItem(
                 icon: Icons.event_note_rounded,
-                label: 'Leave Requests',
-                subtitle: 'Submit or review leave requests',
+                label: language.tr('leaveRequests'),
+                subtitle: language.tr('submitOrReviewLeave'),
                 color: Colors.teal,
                 onTap: () => Navigator.pushNamed(context, '/leave-requests'),
               ),
@@ -272,8 +276,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 10),
                 _ActionItem(
                   icon: Icons.admin_panel_settings_rounded,
-                  label: 'Admin Dashboard',
-                  subtitle: 'Manage users, reports, and settings',
+                  label: language.tr('adminDashboard'),
+                  subtitle: language.tr('manageUsersReportsSettings'),
                   color: AppTheme.accentColor,
                   onTap: () => Navigator.pushNamed(context, '/admin'),
                 ),
@@ -281,19 +285,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.03, end: 0),
-
         const SizedBox(height: 20),
-
-        // Sign Out
         Container(
           padding: const EdgeInsets.all(24),
           decoration: AppTheme.cardDecoration(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Session',
-                style: TextStyle(
+              Text(
+                language.tr('language'),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const LanguageSelector(),
+            ],
+          ),
+        ).animate().fadeIn(delay: 350.ms).slideY(begin: 0.03, end: 0),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: AppTheme.cardDecoration(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                language.tr('session'),
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary,
@@ -301,7 +322,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 16),
               CustomButton(
-                text: 'Sign Out',
+                text: language.tr('signOutTitle'),
                 icon: Icons.logout_rounded,
                 backgroundColor: AppTheme.errorColor,
                 onPressed: () => _logout(),
@@ -314,22 +335,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _logout() async {
+    final language = context.read<LanguageProvider>();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
+        title: Text(language.tr('signOutTitle')),
+        content: Text(language.tr('signOutConfirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(language.tr('cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.errorColor,
             ),
-            child: const Text('Sign Out'),
+            child: Text(language.tr('signOutTitle')),
           ),
         ],
       ),
@@ -343,7 +365,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ─── Profile Info Row ───────────────────────────────────────
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -402,7 +423,6 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-// ─── Action Item ────────────────────────────────────────────
 class _ActionItem extends StatefulWidget {
   final IconData icon;
   final String label;
