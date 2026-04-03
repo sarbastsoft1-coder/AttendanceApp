@@ -359,6 +359,15 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                   onPressed: isSaving || selectedStudentId == null
                       ? null
                       : () async {
+                          final hadExistingRecord = attendanceProvider
+                              .allAttendance
+                              .any(
+                                (record) =>
+                                    record.studentId == selectedStudentId &&
+                                    record.date.year == selectedDate.year &&
+                                    record.date.month == selectedDate.month &&
+                                    record.date.day == selectedDate.day,
+                              );
                           setDialogState(() {
                             isSaving = true;
                           });
@@ -390,7 +399,11 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                           messenger.showSnackBar(
                             SnackBar(
                               content: Text(
-                                language.text('Attendance saved successfully'),
+                                language.text(
+                                  hadExistingRecord
+                                      ? 'Attendance updated for selected date'
+                                      : 'Attendance saved successfully',
+                                ),
                               ),
                               backgroundColor: AppTheme.successColor,
                             ),

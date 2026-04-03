@@ -500,6 +500,16 @@ class AttendanceProvider with ChangeNotifier {
 
       final response = await _api.post(ApiConfig.manualAttendance, data: data);
       final attendance = Attendance.fromJson(response.data);
+      _upsertAttendanceRecord(_allAttendance, attendance);
+      _upsertAttendanceRecord(_history, attendance);
+
+      final isToday = _isSameCalendarDay(attendance.date, DateTime.now());
+      if (isToday) {
+        _upsertAttendanceRecord(_todayAttendance, attendance);
+      } else {
+        _todayAttendance.removeWhere((record) => record.id == attendance.id);
+      }
+
       _setLoading(false);
       return attendance;
     } catch (e) {
@@ -544,6 +554,22 @@ class AttendanceProvider with ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  void _upsertAttendanceRecord(List<Attendance> records, Attendance attendance) {
+    final index = records.indexWhere((record) => record.id == attendance.id);
+    if (index == -1) {
+      records.insert(0, attendance);
+    } else {
+      records[index] = attendance;
+    }
+    records.sort(
+      (a, b) => (b.checkInTime ?? b.date).compareTo(a.checkInTime ?? a.date),
+    );
+  }
+
+  bool _isSameCalendarDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   void _setLoading(bool value) {
