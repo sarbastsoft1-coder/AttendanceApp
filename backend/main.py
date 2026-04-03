@@ -1253,64 +1253,84 @@ async def room_scan(
             Student.has_registered_face == True
         ).all()
 
-        if not face_locations:
-            return RoomScanResponse(
-                present_count=0,
-                absent_count=len(expected_students),
-                total_students=len(expected_students),
-                present_users=[],
-                absent_users=[_student_to_user_response(s, class_obj.name) for s in expected_students],
-                message="No faces were detected in the image. Make sure faces are clearly visible and well-lit, then retry."
+        scan_time = datetime.now()
+        target_date = scan_time.date()
+        managed_students = []
+        for student in expected_students:
+            managed_user = _ensure_student_linked_user(db, student, class_obj)
+            managed_students.append((student, managed_user))
+
+        existing_by_user_id = {}
+        if managed_students:
+            existing_records = db.query(Attendance).filter(
+                Attendance.user_id.in_([managed_user.id for _, managed_user in managed_students]),
+                func.date(Attendance.date) == target_date
+            ).all()
+            existing_by_user_id = {record.user_id: record for record in existing_records}
+
+        present_ids = set()
+        if face_locations:
+            unknown_encodings = await asyncio.to_thread(
+                face_recognition.face_encodings, rgb_img, face_locations
             )
 
-        unknown_encodings = await asyncio.to_thread(
-            face_recognition.face_encodings, rgb_img, face_locations
-        )
+            known_encodings = []
+            for student in expected_students:
+                enc = _parse_face_encoding(student.face_encoding)
+                if enc:
+                    known_encodings.append((student.id, student.name, enc))
 
-        known_encodings = []
-        for student in expected_students:
-            enc = _parse_face_encoding(student.face_encoding)
-            if enc:
-                known_encodings.append((student.id, student.name, enc))
-
-        matches = await asyncio.to_thread(
-            face_service.find_all_matches, known_encodings, unknown_encodings
-        )
-        present_ids = {m[0] for m in matches}
+            matches = await asyncio.to_thread(
+                face_service.find_all_matches, known_encodings, unknown_encodings
+            )
+            present_ids = {m[0] for m in matches}
 
         present_students = [s for s in expected_students if s.id in present_ids]
         absent_students = [s for s in expected_students if s.id not in present_ids]
 
-        today = date.today()
-        for student in present_students:
-            managed_user = _ensure_student_linked_user(db, student, class_obj)
-            existing = db.query(Attendance).filter(
-                Attendance.user_id == managed_user.id,
-                func.date(Attendance.date) == today
-            ).first()
-            if not existing:
-                db.add(Attendance(
+        for student, managed_user in managed_students:
+            existing = existing_by_user_id.get(managed_user.id)
+            is_present = student.id in present_ids
+
+            if existing is None:
+                attendance = Attendance(
                     user_id=managed_user.id,
                     student_id=student.id,
                     class_id=class_obj.id,
-                    date=datetime.now(),
-                    check_in_time=datetime.now(),
+                    date=scan_time,
+                    check_in_time=scan_time if is_present else None,
                     method="room_scan",
-                    status="present"
-                ))
+                    status="present" if is_present else "absent",
+                )
+                db.add(attendance)
+                existing_by_user_id[managed_user.id] = attendance
+                continue
+
+            existing.student_id = student.id
+            existing.class_id = class_obj.id
+
+            if is_present and existing.status == "absent" and existing.method == "room_scan":
+                existing.status = "present"
+                existing.date = scan_time
+                existing.check_in_time = scan_time
         db.commit()
 
         faces_detected = len(face_locations)
-        if len(present_students) == 0 and faces_detected > 0:
+        if faces_detected == 0:
+            msg = (
+                f"No faces were detected in the image. Marked {len(absent_students)} "
+                f"expected students absent for today in {class_obj.name}."
+            )
+        elif len(present_students) == 0:
             msg = (
                 f"{faces_detected} face(s) were detected in the image but none matched any "
-                f"registered student in '{class_obj.name}'. "
-                "Make sure students have registered their faces first."
+                f"registered student in '{class_obj.name}'. Expected students were marked absent for today."
             )
-        elif faces_detected == 0:
-            msg = "No faces were detected in the image. Make sure faces are clearly visible and well-lit."
         else:
-            msg = f"Found {len(present_students)} of {len(expected_students)} students in {class_obj.name}."
+            msg = (
+                f"Recorded attendance for {len(expected_students)} students in {class_obj.name}. "
+                f"Found {len(present_students)} present and {len(absent_students)} absent."
+            )
         return RoomScanResponse(
             present_count=len(present_students),
             absent_count=len(absent_students),
