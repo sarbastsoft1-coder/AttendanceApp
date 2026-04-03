@@ -10,6 +10,23 @@ Deploy the Flutter web frontend as a second Coolify application from the same re
 
 ## Coolify settings
 
+### Option 1: Docker Compose
+
+Create a new application with these values:
+
+- Repository: `https://github.com/sarbastsoft1-coder/AttendanceApp`
+- Build Pack: `Docker Compose`
+- Base Directory: `/`
+- Docker Compose Location: `/docker-compose.frontend.yml`
+
+The frontend service inside that file is:
+
+- `frontend`
+
+Assign the domain only to `frontend` using internal port `80`.
+
+### Option 2: Dockerfile
+
 Create a new application with these values:
 
 - Repository: `https://github.com/sarbastsoft1-coder/AttendanceApp`
@@ -26,6 +43,12 @@ API_BASE_URL=http://your-backend-domain
 ```
 
 Use the backend domain that is already working in Coolify.
+
+Example for your current backend:
+
+```env
+API_BASE_URL=http://ik0ksg08k8kgggk4s48ok00.45.32.155.226.sslip.io
+```
 
 ## Backend CORS
 
