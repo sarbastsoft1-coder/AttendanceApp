@@ -1,13 +1,34 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// API Configuration
 /// Base URL is runtime-configurable (saved in SharedPreferences).
-/// Defaults to localhost:8000 for local desktop use.
+/// Web builds can inject API_BASE_URL at compile time, while desktop keeps a
+/// localhost default for local development.
 class ApiConfig {
-  static const String _defaultBaseUrl = 'http://localhost:8000';
+  static const String _configuredBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  );
+  static const String _desktopDefaultBaseUrl = 'http://localhost:8000';
   static const String _baseUrlKey = 'api_base_url';
 
+  static final String _defaultBaseUrl = _resolveDefaultBaseUrl();
   static String _runtimeBaseUrl = _defaultBaseUrl;
+
+  static String _normalizeBaseUrl(String url) {
+    return url.trim().replaceAll(RegExp(r'/$'), '');
+  }
+
+  static String _resolveDefaultBaseUrl() {
+    if (_configuredBaseUrl.trim().isNotEmpty) {
+      return _normalizeBaseUrl(_configuredBaseUrl);
+    }
+    if (kIsWeb) {
+      return _normalizeBaseUrl(Uri.base.origin);
+    }
+    return _desktopDefaultBaseUrl;
+  }
 
   /// The currently active base URL (may differ per-run if user changed it)
   static String get baseUrl => _runtimeBaseUrl;
@@ -15,12 +36,15 @@ class ApiConfig {
   /// Load saved base URL from SharedPreferences (call once at startup)
   static Future<void> loadBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    _runtimeBaseUrl = prefs.getString(_baseUrlKey) ?? _defaultBaseUrl;
+    final saved = prefs.getString(_baseUrlKey);
+    _runtimeBaseUrl = saved == null || saved.trim().isEmpty
+        ? _defaultBaseUrl
+        : _normalizeBaseUrl(saved);
   }
 
   /// Persist a new base URL and update the runtime value
   static Future<void> setBaseUrl(String url) async {
-    _runtimeBaseUrl = url.trimRight().replaceAll(RegExp(r'/$'), '');
+    _runtimeBaseUrl = _normalizeBaseUrl(url);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_baseUrlKey, _runtimeBaseUrl);
   }

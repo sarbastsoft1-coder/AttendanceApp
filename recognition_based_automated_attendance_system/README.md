@@ -1,16 +1,40 @@
 # recognition_based_automated_attendance_system
 
-A new Flutter project.
+Flutter frontend for the attendance system. This app can run as both a desktop
+app and a web app, and both targets can use the same backend API.
 
-## Getting Started
+## Local development
 
-This project is a starting point for a Flutter application.
+Desktop:
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter run -d windows
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Web against a deployed backend:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter run -d chrome --dart-define=API_BASE_URL=http://your-backend-domain
+```
+
+## Production web build
+
+```bash
+flutter build web --release --pwa-strategy=none --dart-define=API_BASE_URL=http://your-backend-domain
+```
+
+## API base URL behavior
+
+- Desktop defaults to `http://localhost:8000`
+- Web can use a compile-time `API_BASE_URL`
+- Users can still override the backend URL from the in-app settings screen
+
+## Coolify
+
+Deploy the web frontend as a separate application from this folder. See
+[COOLIFY_FRONTEND_DEPLOY.md](/C:/AttendanceApp/COOLIFY_FRONTEND_DEPLOY.md).
+
+## References
+
+- https://docs.flutter.dev/deployment/web
+- https://docs.flutter.dev/platform-integration/web

@@ -579,7 +579,7 @@ class AppStrings {
       'serverRespondedWithStatus': 'Server responded with status {code}',
       'failedToConnect': 'Failed to connect: {reason}',
       'urlResetDefault': 'URL reset to default',
-      'resetToDefault': 'Reset to default (localhost:8000)',
+      'resetToDefault': 'Reset to default URL',
       'attendanceTime': 'Attendance Time',
       'lateCheckInThreshold': 'Late Check-In Threshold',
       'studentsArrivingLate':
@@ -718,7 +718,7 @@ class AppStrings {
       'serverRespondedWithStatus': 'سێرڤەر بە دۆخی {code} وەڵامی دا',
       'failedToConnect': 'پەیوەست بوون سەرکەوتوو نەبوو: {reason}',
       'urlResetDefault': 'URL بۆ بنەڕەت گەڕایەوە',
-      'resetToDefault': 'گەڕاندنەوە بۆ بنەڕەت (localhost:8000)',
+      'resetToDefault': 'گەڕاندنەوە بۆ URL ی بنەڕەت',
       'attendanceTime': 'کاتی ئامادەبوون',
       'lateCheckInThreshold': 'سنووری دواکەوتنی هاتنەژوور',
       'studentsArrivingLate':

@@ -7,6 +7,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'config/api_config.dart';
 import 'config/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/attendance_provider.dart';
@@ -41,6 +42,7 @@ void main() async {
 
   // Initialize storage service
   await StorageService().init();
+  await ApiConfig.loadBaseUrl();
 
   final themeProvider = ThemeProvider();
   await themeProvider.init();

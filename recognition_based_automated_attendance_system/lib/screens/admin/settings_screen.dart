@@ -344,8 +344,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Expanded(
                             child: TextField(
                               controller: _urlController,
-                              decoration: const InputDecoration(
-                                hintText: 'http://localhost:8000',
+                              decoration: InputDecoration(
+                                hintText: ApiConfig.defaultBaseUrl,
                                 prefixIcon: Icon(Icons.link_rounded),
                                 contentPadding: EdgeInsets.symmetric(
                                   horizontal: 16,
