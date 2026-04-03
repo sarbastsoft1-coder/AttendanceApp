@@ -5,7 +5,7 @@ import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
 
-/// Animated collapsible sidebar navigation for desktop
+/// Desktop sidebar navigation
 class SidebarNavigation extends StatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onItemSelected;
@@ -22,93 +22,47 @@ class SidebarNavigation extends StatefulWidget {
   State<SidebarNavigation> createState() => _SidebarNavigationState();
 }
 
-class _SidebarNavigationState extends State<SidebarNavigation>
-    with SingleTickerProviderStateMixin {
-  bool _isExpanded = true;
-  late AnimationController _animController;
-  late Animation<double> _widthAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      duration: AppTheme.animNormal,
-      vsync: this,
-    );
-    _widthAnimation =
-        Tween<double>(
-          begin: AppTheme.sidebarExpandedWidth,
-          end: AppTheme.sidebarCollapsedWidth,
-        ).animate(
-          CurvedAnimation(
-            parent: _animController,
-            curve: Curves.easeInOutCubic,
-          ),
-        );
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
-
-  void _toggleSidebar() {
-    setState(() {
-      _isExpanded = !_isExpanded;
-      if (_isExpanded) {
-        _animController.reverse();
-      } else {
-        _animController.forward();
-      }
-    });
-  }
+class _SidebarNavigationState extends State<SidebarNavigation> {
+  static const bool _isExpanded = true;
 
   @override
   Widget build(BuildContext context) {
     final language = context.language;
 
-    return AnimatedBuilder(
-      animation: _widthAnimation,
-      builder: (context, child) {
-        return Container(
-          width: _widthAnimation.value,
-          decoration: BoxDecoration(
-            color: AppTheme.bgSidebar,
-            border: Border(
-              right: BorderSide(color: AppTheme.glassBorder, width: 0.5),
-            ),
-          ),
-          child: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isCompactHeight = constraints.maxHeight < 760;
+    return Container(
+      width: AppTheme.sidebarExpandedWidth,
+      decoration: BoxDecoration(
+        color: AppTheme.bgSidebar,
+        border: Border(
+          right: BorderSide(color: AppTheme.glassBorder, width: 0.5),
+        ),
+      ),
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompactHeight = constraints.maxHeight < 760;
 
-                return SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                    child: IntrinsicHeight(
-                      child: Column(
-                        children: [
-                          SizedBox(height: isCompactHeight ? 10 : 16),
-                          _buildLogo(language),
-                          SizedBox(height: isCompactHeight ? 20 : 32),
-                          _buildNavigationSection(language, isCompactHeight),
-                          const Spacer(),
-                          _buildCollapseToggle(language),
-                          SizedBox(height: isCompactHeight ? 6 : 8),
-                          _buildUserSection(language),
-                          SizedBox(height: isCompactHeight ? 10 : 16),
-                        ],
-                      ),
-                    ),
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      SizedBox(height: isCompactHeight ? 10 : 16),
+                      _buildLogo(language),
+                      SizedBox(height: isCompactHeight ? 20 : 32),
+                      _buildNavigationSection(language, isCompactHeight),
+                      const Spacer(),
+                      _buildUserSection(language),
+                      SizedBox(height: isCompactHeight ? 10 : 16),
+                    ],
                   ),
-                );
-              },
-            ),
-          ),
-        );
-      },
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -293,49 +247,6 @@ class _SidebarNavigationState extends State<SidebarNavigation>
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildCollapseToggle(dynamic language) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: InkWell(
-        onTap: _toggleSidebar,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppTheme.glassHighlight,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisAlignment: _isExpanded
-                ? MainAxisAlignment.start
-                : MainAxisAlignment.center,
-            children: [
-              AnimatedRotation(
-                turns: _isExpanded ? 0.0 : 0.5,
-                duration: AppTheme.animNormal,
-                child: const Icon(
-                  Icons.keyboard_double_arrow_left_rounded,
-                  color: AppTheme.textSecondary,
-                  size: 20,
-                ),
-              ),
-              if (_isExpanded) ...[
-                const SizedBox(width: 10),
-                Text(
-                  language.tr('collapse'),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
       ),
     );
   }
