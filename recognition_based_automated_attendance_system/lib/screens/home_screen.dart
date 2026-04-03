@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
@@ -29,9 +26,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-
-  bool get _isDesktop =>
-      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
   @override
   void initState() {
@@ -144,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isDesktop) {
+    if (!ResponsiveLayout.isDesktop(context)) {
       return _buildMobileLayout();
     }
     return _buildDesktopLayout();
@@ -154,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: Column(
         children: [
-          const WindowTitleBar(),
+          if (ResponsiveLayout.isNativeDesktop()) const WindowTitleBar(),
           Expanded(
             child: Row(
               children: [
@@ -223,8 +217,10 @@ class _DashboardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveLayout.isMobile(context);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 20 : 28),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1200),
         child: Column(
@@ -243,21 +239,24 @@ class _DashboardContent extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     final language = context.language;
+    final isMobile = ResponsiveLayout.isMobile(context);
 
     return Consumer2<AuthProvider, NotificationProvider>(
       builder: (context, auth, notifications, _) {
         final name = auth.user?.fullName ?? language.tr('user');
         final greeting = _getGreeting(language);
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          runSpacing: 16,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '$greeting، $name 👋',
-                  style: const TextStyle(
-                    fontSize: 28,
+                  style: TextStyle(
+                    fontSize: isMobile ? 22 : 28,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textPrimary,
                     letterSpacing: -0.3,
@@ -266,14 +265,15 @@ class _DashboardContent extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   _getDateString(language),
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: TextStyle(
+                    fontSize: isMobile ? 13 : 14,
                     color: AppTheme.textSecondary,
                   ),
                 ).animate().fadeIn(delay: 200.ms),
               ],
             ),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 _HeaderAction(
                   icon: Icons.refresh_rounded,
@@ -299,15 +299,21 @@ class _DashboardContent extends StatelessWidget {
 
   Widget _buildStatCards(BuildContext context) {
     final language = context.language;
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width >= 1200
+        ? 4
+        : width >= 700
+        ? 2
+        : 1;
 
     return Consumer<AttendanceProvider>(
       builder: (context, attendance, _) {
         final stats = attendance.stats;
         return GridView.count(
-          crossAxisCount: ResponsiveLayout.isDesktop(context) ? 4 : 2,
+          crossAxisCount: crossAxisCount,
           mainAxisSpacing: 16,
           crossAxisSpacing: 16,
-          childAspectRatio: ResponsiveLayout.isDesktop(context) ? 1.6 : 1.4,
+          childAspectRatio: crossAxisCount == 1 ? 2.8 : 1.45,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
@@ -449,9 +455,10 @@ class _QuickActionsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final language = context.language;
+    final isMobile = ResponsiveLayout.isMobile(context);
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 20 : 24),
       decoration: AppTheme.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,6 +481,7 @@ class _QuickActionsPanel extends StatelessWidget {
                 label: language.tr('roomScanner'),
                 color: AppTheme.primaryColor,
                 onTap: () => Navigator.pushNamed(context, '/room-scanner'),
+                isCompact: isMobile,
               ),
               _ActionTile(
                 icon: Icons.group_add_rounded,
@@ -481,30 +489,35 @@ class _QuickActionsPanel extends StatelessWidget {
                 color: AppTheme.secondaryColor,
                 onTap: () =>
                     Navigator.pushNamed(context, '/batch-registration'),
+                isCompact: isMobile,
               ),
               _ActionTile(
                 icon: Icons.edit_note_rounded,
                 label: language.tr('editAttendance'),
                 color: AppTheme.infoColor,
                 onTap: () => Navigator.pushNamed(context, '/admin/attendance'),
+                isCompact: isMobile,
               ),
               _ActionTile(
                 icon: Icons.class_rounded,
                 label: language.tr('manageClasses'),
                 color: Colors.amber,
                 onTap: () => Navigator.pushNamed(context, '/admin/classes'),
+                isCompact: isMobile,
               ),
               _ActionTile(
                 icon: Icons.event_note_rounded,
                 label: language.tr('leaveRequests'),
                 color: Colors.teal,
                 onTap: () => Navigator.pushNamed(context, '/leave-requests'),
+                isCompact: isMobile,
               ),
               _ActionTile(
                 icon: Icons.history_rounded,
                 label: language.tr('fullHistory'),
                 color: Colors.purple,
                 onTap: onHistoryTap,
+                isCompact: isMobile,
               ),
             ],
           ),
@@ -519,12 +532,14 @@ class _ActionTile extends StatefulWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final bool isCompact;
 
   const _ActionTile({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.isCompact = false,
   });
 
   @override
@@ -544,7 +559,7 @@ class _ActionTileState extends State<_ActionTile> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: AppTheme.animFast,
-          width: 145,
+          width: widget.isCompact ? 132 : 145,
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: _isHovered

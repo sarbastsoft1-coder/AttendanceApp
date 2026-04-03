@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +6,7 @@ import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
 import '../providers/attendance_provider.dart';
+import '../widgets/responsive_layout.dart';
 import '../widgets/stats_card.dart';
 
 /// History Screen — Desktop data table + filter bar
@@ -26,9 +25,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   String t(String text, {Map<String, String> params = const {}}) =>
       context.t(text, params: params);
-
-  bool get _isDesktop =>
-      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
   @override
   void initState() {
@@ -77,6 +73,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final content = _buildContent();
+    final isDesktop = ResponsiveLayout.isDesktop(context);
 
     if (widget.embedded) {
       return content;
@@ -87,7 +84,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ? null
           : AppBar(
               title: Text(t('Attendance History')),
-              leading: _isDesktop
+              leading: isDesktop
                   ? IconButton(
                       icon: const Icon(Icons.arrow_back_rounded),
                       onPressed: () => Navigator.of(context).maybePop(),
@@ -99,8 +96,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildContent() {
+    final isMobile = ResponsiveLayout.isMobile(context);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 20 : 28),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1200),
         child: Column(
@@ -136,10 +135,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildFilterBar() {
+    final isMobile = ResponsiveLayout.isMobile(context);
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isMobile ? 14 : 16),
       decoration: AppTheme.cardDecoration(borderRadius: 14),
-      child: Row(
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           // Date Range Picker
           _FilterChip(
@@ -150,21 +154,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
             isActive: _selectedDateRange != null,
             onTap: _pickDateRange,
           ),
-          const SizedBox(width: 10),
           // Status Filter
           ...['All', 'Present', 'Late', 'Absent'].map((status) {
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _FilterChip(
-                label: status,
-                isActive: _filterStatus == status,
-                onTap: () {
-                  setState(() => _filterStatus = status);
-                },
-              ),
+            return _FilterChip(
+              label: status,
+              isActive: _filterStatus == status,
+              onTap: () {
+                setState(() => _filterStatus = status);
+              },
             );
           }),
-          const Spacer(),
           if (_selectedDateRange != null || _filterStatus != 'All')
             MouseRegion(
               cursor: SystemMouseCursors.click,
@@ -177,6 +176,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   _loadHistory();
                 },
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.clear_rounded,
@@ -272,7 +272,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         }
 
         // Desktop — Data Table
-        if (_isDesktop) {
+        if (ResponsiveLayout.isDesktop(context)) {
           return Container(
             decoration: AppTheme.cardDecoration(),
             child: ClipRRect(

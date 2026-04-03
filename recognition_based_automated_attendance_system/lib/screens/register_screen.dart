@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_textfield.dart';
 import '../widgets/language_selector.dart';
+import '../widgets/responsive_layout.dart';
 import '../widgets/window_title_bar.dart';
 
 /// Premium Split-Panel Registration Screen
@@ -28,9 +27,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _departmentController = TextEditingController();
-
-  bool get _isDesktop =>
-      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
   @override
   void dispose() {
@@ -75,12 +71,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final useDesktopLayout = ResponsiveLayout.isDesktop(context);
+
     return Scaffold(
       body: Column(
         children: [
-          if (_isDesktop) const WindowTitleBar(),
+          if (ResponsiveLayout.isNativeDesktop()) const WindowTitleBar(),
           Expanded(
-            child: _isDesktop ? _buildDesktopLayout() : _buildMobileLayout(),
+            child: useDesktopLayout
+                ? _buildDesktopLayout()
+                : _buildMobileLayout(),
           ),
         ],
       ),
@@ -120,19 +120,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              AppBar(
-                title: Text(t('Create Account')),
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                backgroundColor: Colors.transparent,
-                elevation: 0,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                children: [
+                  AppBar(
+                    title: Text(t('Create Account')),
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                  ),
+                  _buildForm(),
+                ],
               ),
-              _buildForm(),
-            ],
+            ),
           ),
         ),
       ),
@@ -152,6 +157,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final confirmPasswordLabel = t('Confirm Password');
     final confirmPasswordHint = t('Confirm your password');
     final createAccountLabel = t('Create Account');
+    final useDesktopLayout = ResponsiveLayout.isDesktop(context);
 
     return Form(
       key: _formKey,
@@ -166,7 +172,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           // Header
           Row(
             children: [
-              if (_isDesktop)
+              if (useDesktopLayout)
                 IconButton(
                   icon: const Icon(
                     Icons.arrow_back_rounded,
@@ -181,7 +187,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Text(
                       t('Create Account'),
                       style: TextStyle(
-                        fontSize: _isDesktop ? 30 : 26,
+                        fontSize: useDesktopLayout ? 30 : 26,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textPrimary,
                         letterSpacing: -0.3,
@@ -203,7 +209,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SizedBox(height: 32),
 
           // Name + Email row (desktop) or stacked (mobile)
-          if (_isDesktop) ...[
+          if (useDesktopLayout) ...[
             Row(
               children: [
                 Expanded(

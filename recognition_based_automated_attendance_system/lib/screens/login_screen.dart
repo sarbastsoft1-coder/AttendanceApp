@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +9,7 @@ import '../providers/language_provider.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_textfield.dart';
 import '../widgets/language_selector.dart';
+import '../widgets/responsive_layout.dart';
 import '../widgets/window_title_bar.dart';
 
 /// Premium Split-Panel Login Screen for Windows Desktop
@@ -27,9 +25,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _rememberMe = false;
-
-  bool get _isDesktop =>
-      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
   @override
   void initState() {
@@ -182,12 +177,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final useDesktopLayout = ResponsiveLayout.isDesktop(context);
+
     return Scaffold(
       body: Column(
         children: [
-          if (_isDesktop) const WindowTitleBar(),
+          if (ResponsiveLayout.isNativeDesktop()) const WindowTitleBar(),
           Expanded(
-            child: _isDesktop ? _buildDesktopLayout() : _buildMobileLayout(),
+            child: useDesktopLayout
+                ? _buildDesktopLayout()
+                : _buildMobileLayout(),
           ),
         ],
       ),
@@ -223,7 +222,12 @@ class _LoginScreenState extends State<LoginScreen> {
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: _buildForm(),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: _buildForm(),
+            ),
+          ),
         ),
       ),
     );
@@ -231,6 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildForm() {
     final language = context.language;
+    final useDesktopLayout = ResponsiveLayout.isDesktop(context);
 
     return Form(
       key: _formKey,
@@ -241,7 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
             alignment: AlignmentDirectional.centerEnd,
             child: const LanguageSelector(compact: true),
           ),
-          if (!_isDesktop) ...[
+          if (!useDesktopLayout) ...[
             const SizedBox(height: 24),
             Center(
               child: Container(
@@ -271,7 +276,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Text(
             language.tr('welcomeBack'),
             style: TextStyle(
-              fontSize: _isDesktop ? 32 : 28,
+              fontSize: useDesktopLayout ? 32 : 28,
               fontWeight: FontWeight.bold,
               color: AppTheme.textPrimary,
               letterSpacing: -0.5,
@@ -322,10 +327,13 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.05, end: 0),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Checkbox(
                     value: _rememberMe,

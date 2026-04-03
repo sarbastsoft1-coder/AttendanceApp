@@ -1,12 +1,10 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/responsive_layout.dart';
 import '../widgets/window_title_bar.dart';
 
 /// Cinematic Splash Screen for Windows Desktop
@@ -116,17 +114,16 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  bool get _isDesktop =>
-      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
-
   @override
   Widget build(BuildContext context) {
     final tagline = context.tr('splashTagline');
+    final useDesktopWindowChrome = ResponsiveLayout.isNativeDesktop();
+    final isCompact = ResponsiveLayout.isMobile(context);
 
     return Scaffold(
       body: Column(
         children: [
-          if (_isDesktop) const WindowTitleBar(),
+          if (useDesktopWindowChrome) const WindowTitleBar(),
           Expanded(
             child: Container(
               decoration: const BoxDecoration(
@@ -161,11 +158,13 @@ class _SplashScreenState extends State<SplashScreen>
                               child: Transform.scale(
                                 scale: _logoScale.value,
                                 child: Container(
-                                  width: 110,
-                                  height: 110,
+                                  width: isCompact ? 88 : 110,
+                                  height: isCompact ? 88 : 110,
                                   decoration: BoxDecoration(
                                     color: Colors.white,
-                                    borderRadius: BorderRadius.circular(28),
+                                    borderRadius: BorderRadius.circular(
+                                      isCompact ? 22 : 28,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
                                         color: AppTheme.primaryColor.withValues(
@@ -176,9 +175,9 @@ class _SplashScreenState extends State<SplashScreen>
                                       ),
                                     ],
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.face_retouching_natural,
-                                    size: 56,
+                                    size: isCompact ? 46 : 56,
                                     color: AppTheme.primaryColor,
                                   ),
                                 ),
@@ -214,7 +213,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 child: Text(
                                   tagline,
                                   style: TextStyle(
-                                    fontSize: 15,
+                                    fontSize: isCompact ? 13 : 15,
                                     color: Colors.white.withValues(alpha: 0.6),
                                     letterSpacing: 2,
                                     fontWeight: FontWeight.w300,
@@ -226,7 +225,7 @@ class _SplashScreenState extends State<SplashScreen>
                             Opacity(
                               opacity: _progressOpacity.value,
                               child: SizedBox(
-                                width: 180,
+                                width: isCompact ? 140 : 180,
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(4),
                                   child: LinearProgressIndicator(

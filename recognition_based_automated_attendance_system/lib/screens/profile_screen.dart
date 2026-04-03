@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/language_provider.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/language_selector.dart';
+import '../widgets/responsive_layout.dart';
 
 /// Premium Profile Screen — Two-column layout for desktop
 class ProfileScreen extends StatefulWidget {
@@ -23,19 +21,17 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool get _isDesktop =>
-      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
-
   @override
   Widget build(BuildContext context) {
     final content = _buildContent();
+    final isDesktop = ResponsiveLayout.isDesktop(context);
 
     if (widget.embedded) {
       return content;
     }
 
     return Scaffold(
-      appBar: _isDesktop ? null : AppBar(title: Text(context.tr('profile'))),
+      appBar: isDesktop ? null : AppBar(title: Text(context.tr('profile'))),
       body: content,
     );
   }
@@ -56,10 +52,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(28),
+          padding: EdgeInsets.all(ResponsiveLayout.isMobile(context) ? 20 : 28),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1000),
-            child: _isDesktop
+            child: ResponsiveLayout.isDesktop(context)
                 ? _buildDesktopProfile(auth, user)
                 : _buildMobileProfile(auth, user),
           ),

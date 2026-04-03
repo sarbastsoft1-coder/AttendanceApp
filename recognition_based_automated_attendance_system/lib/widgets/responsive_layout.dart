@@ -10,9 +10,13 @@ class ResponsiveLayout extends StatelessWidget {
 
   const ResponsiveLayout({super.key, required this.child});
 
+  static bool isNativeDesktop() {
+    return !kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+  }
+
   static bool isDesktop(BuildContext context) {
-    if (!kIsWeb &&
-        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    if (isNativeDesktop()) {
       return true;
     }
     return MediaQuery.of(context).size.width >= 1024;
