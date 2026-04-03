@@ -4,7 +4,7 @@ services:
       context: ./recognition_based_automated_attendance_system
       dockerfile: Dockerfile
       args:
-        API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+        API_BASE_URL: ${API_BASE_URL:?Set API_BASE_URL to your deployed backend URL}
     restart: unless-stopped
     expose:
       - "80"

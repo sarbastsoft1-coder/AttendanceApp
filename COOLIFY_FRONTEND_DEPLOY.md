@@ -43,6 +43,7 @@ API_BASE_URL=http://your-backend-domain
 ```
 
 Use the backend domain that is already working in Coolify.
+This variable is required. If it is missing, the frontend build will now fail instead of silently pointing to `localhost`.
 
 Example for your current backend:
 
