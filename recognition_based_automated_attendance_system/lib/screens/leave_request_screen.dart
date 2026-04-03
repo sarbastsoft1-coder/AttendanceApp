@@ -272,7 +272,7 @@ class _LeaveCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${context.t('Date')}: ${DateFormat('MMM d, yyyy').format(leave.leaveDate)}',
+                          '${context.t('Date')}: ${DateFormat('MMM d, yyyy • hh:mm a').format(leave.leaveDate)}',
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
@@ -473,7 +473,9 @@ class _LeaveCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      DateFormat('EEEE, MMM d, yyyy').format(leave.leaveDate),
+                      DateFormat('EEEE, MMM d, yyyy • hh:mm a').format(
+                        leave.leaveDate,
+                      ),
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppTheme.textSecondary,
@@ -581,9 +583,10 @@ class _LeaveCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 context.t(
-                  'Submitted {date}',
+                  'Submitted {date} at {time}',
                   params: {
                     'date': DateFormat('MMM d, yyyy').format(leave.createdAt),
+                    'time': DateFormat('hh:mm a').format(leave.createdAt),
                   },
                 ),
                 style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
@@ -707,12 +710,28 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
   final _reasonController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
   final _formKey = GlobalKey<FormState>();
+  bool _attemptedSubmit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _reasonController.addListener(_handleReasonChanged);
+  }
 
   @override
   void dispose() {
+    _reasonController.removeListener(_handleReasonChanged);
     _reasonController.dispose();
     super.dispose();
   }
+
+  void _handleReasonChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  bool get _canSubmit => _reasonController.text.trim().length >= 5;
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -733,7 +752,44 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
       },
     );
     if (picked != null) {
-      setState(() => _selectedDate = picked);
+      setState(() {
+        _selectedDate = DateTime(
+          picked.year,
+          picked.month,
+          picked.day,
+          _selectedDate.hour,
+          _selectedDate.minute,
+        );
+      });
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_selectedDate),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppTheme.primaryColor,
+              surface: AppTheme.bgCard,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDate = DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
+          picked.hour,
+          picked.minute,
+        );
+      });
     }
   }
 
@@ -743,6 +799,9 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
       title: Text(context.t('Submit Leave Request')),
       content: Form(
         key: _formKey,
+        autovalidateMode: _attemptedSubmit
+            ? AutovalidateMode.always
+            : AutovalidateMode.onUserInteraction,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -797,6 +856,54 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
               ),
               const SizedBox(height: 16),
 
+              Text(
+                context.t('Time'),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _pickTime,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgElevated,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppTheme.glassBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.access_time_rounded,
+                        size: 18,
+                        color: AppTheme.primaryColor,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        DateFormat('hh:mm a').format(_selectedDate),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const Spacer(),
+                      const Icon(
+                        Icons.arrow_drop_down,
+                        color: AppTheme.textMuted,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // Reason
               Text(
                 context.t('Reason'),
@@ -813,6 +920,9 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
                 maxLength: 500,
                 decoration: InputDecoration(
                   hintText: context.t('Explain the reason for your leave...'),
+                  helperText: context.t(
+                    'Please provide a reason (min 5 characters)',
+                  ),
                   counterStyle: TextStyle(
                     color: AppTheme.textMuted,
                     fontSize: 11,
@@ -841,14 +951,19 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
             return CustomButton(
               text: 'Submit',
               isLoading: provider.isLoading,
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  widget.onSubmit(
-                    date: _selectedDate,
-                    reason: _reasonController.text.trim(),
-                  );
-                }
-              },
+              onPressed: provider.isLoading || !_canSubmit
+                  ? null
+                  : () {
+                      setState(() {
+                        _attemptedSubmit = true;
+                      });
+                      if (_formKey.currentState!.validate()) {
+                        widget.onSubmit(
+                          date: _selectedDate,
+                          reason: _reasonController.text.trim(),
+                        );
+                      }
+                    },
               icon: Icons.send_rounded,
             );
           },

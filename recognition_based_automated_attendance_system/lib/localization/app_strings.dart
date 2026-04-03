@@ -300,6 +300,7 @@ class AppStrings {
     '{count}h ago': '{count} کاتژمێر پێش ئێستا',
     '{count}d ago': '{count} ڕۆژ پێش ئێستا',
     'Leave Date': 'بەرواری مۆڵەت',
+    'Submitted {date} at {time}': 'نێردراوە لە {date} کاتژمێر {time}',
     'Manual Entry': 'تۆمارکردنی دەستی',
     'Maximum 200 students per batch': 'زۆرترین ٢٠٠ خوێندکار بۆ هەر کۆمەڵە',
     'Meeting Days': 'ڕۆژانی کۆبوونەوە',

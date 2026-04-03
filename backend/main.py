@@ -1842,7 +1842,7 @@ async def create_leave_request(
         _push_notification(
             db, admin.id,
             "New Leave Request",
-            f"{requester_name} submitted a leave request for {data.leave_date.strftime('%Y-%m-%d')}.",
+            f"{requester_name} submitted a leave request for {data.leave_date.strftime('%Y-%m-%d %I:%M %p')}.",
             "leave",
             "leave_request", leave.id
         )
@@ -1919,7 +1919,7 @@ async def review_leave_request(
         _push_notification(
             db, leave.user_id,
             f"Leave Request {action_text.capitalize()}",
-            f"Your leave request for {leave.leave_date.strftime('%Y-%m-%d')} was {action_text}."
+            f"Your leave request for {leave.leave_date.strftime('%Y-%m-%d %I:%M %p')} was {action_text}."
             + (f" Note: {data.review_note}" if data.review_note else ""),
             "leave", "leave_request", leave.id
         )
