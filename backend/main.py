@@ -45,7 +45,6 @@ from auth import (
     get_current_user, get_current_active_user, get_current_admin_user
 )
 from face_service import face_service, exam_proctor_service
-import face_recognition
 
 load_dotenv()
 
@@ -67,6 +66,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _get_face_recognition_module():
+    """Load face_recognition through the shared face service lazy init path."""
+    if face_service._lazy_init() and face_service._face_recognition is not None:
+        return face_service._face_recognition
+    raise HTTPException(
+        status_code=503,
+        detail="Face recognition service is not available on this server."
+    )
 
 
 # ========================
@@ -1406,6 +1415,7 @@ async def room_scan(
 
         present_ids = set()
         if face_locations:
+            face_recognition = _get_face_recognition_module()
             unknown_encodings = await asyncio.to_thread(
                 face_recognition.face_encodings, rgb_img, face_locations
             )
@@ -1491,6 +1501,7 @@ async def room_scan(
             message="No faces were detected in the image. Make sure faces are clearly visible and well-lit, then retry."
         )
 
+    face_recognition = _get_face_recognition_module()
     unknown_encodings = await asyncio.to_thread(
         face_recognition.face_encodings, rgb_img, face_locations
     )

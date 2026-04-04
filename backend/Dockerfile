@@ -21,7 +21,8 @@ COPY requirements.deploy.txt .
 RUN pip install --upgrade pip setuptools wheel && \
     pip install -r requirements.deploy.txt && \
     pip install dlib-bin==19.24.6 && \
-    pip install --no-deps face-recognition==1.3.0 face-recognition-models==0.3.0
+    pip install --no-deps face-recognition==1.3.0 && \
+    pip install --no-deps git+https://github.com/ageitgey/face_recognition_models
 
 COPY . .
 
