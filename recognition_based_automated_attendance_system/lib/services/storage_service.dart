@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
@@ -30,16 +31,27 @@ class StorageService {
 
   /// Save authentication token
   Future<void> saveToken(String token) async {
+    if (kIsWeb) {
+      await _prefs?.setString(_tokenKey, token);
+      return;
+    }
     await _secureStorage.write(key: _tokenKey, value: token);
   }
 
   /// Get authentication token
   Future<String?> getToken() async {
+    if (kIsWeb) {
+      return _prefs?.getString(_tokenKey);
+    }
     return await _secureStorage.read(key: _tokenKey);
   }
 
   /// Delete authentication token
   Future<void> deleteToken() async {
+    if (kIsWeb) {
+      await _prefs?.remove(_tokenKey);
+      return;
+    }
     await _secureStorage.delete(key: _tokenKey);
   }
 
@@ -98,14 +110,22 @@ class StorageService {
 
   /// Clear all stored data (for logout)
   Future<void> clearAll() async {
-    await _secureStorage.deleteAll();
+    if (kIsWeb) {
+      await _prefs?.remove(_tokenKey);
+    } else {
+      await _secureStorage.deleteAll();
+    }
     await _prefs?.remove(_userKey);
     // Keep remember me and last email for convenience
   }
 
   /// Clear everything including preferences
   Future<void> clearEverything() async {
-    await _secureStorage.deleteAll();
+    if (kIsWeb) {
+      await _prefs?.remove(_tokenKey);
+    } else {
+      await _secureStorage.deleteAll();
+    }
     await _prefs?.clear();
   }
 }
