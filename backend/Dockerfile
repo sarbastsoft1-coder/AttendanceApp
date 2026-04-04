@@ -1,31 +1,27 @@
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# System packages needed by OpenCV, dlib/face-recognition, and image handling.
+# Runtime libs needed by OpenCV in the slim image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    g++ \
     libgl1 \
     libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    libjpeg62-turbo-dev \
-    zlib1g-dev \
-    libopenblas-dev \
-    liblapack-dev \
+    libgomp1 \
+    liblapack3 \
+    libopenblas0-pthread \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY requirements.deploy.txt .
 
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt
+    pip install -r requirements.deploy.txt && \
+    pip install dlib-bin==19.24.6 && \
+    pip install --no-deps face-recognition==1.3.0 face-recognition-models==0.3.0
 
 COPY . .
 

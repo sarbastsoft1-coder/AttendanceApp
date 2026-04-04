@@ -1,0 +1,36 @@
+# Backend requirements optimized for Docker/Coolify deployment.
+# The deployed image uses the prebuilt Linux dlib wheel (`dlib-bin`) and installs
+# `face-recognition` separately in the Dockerfile to avoid compiling dlib from source.
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# Database
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+alembic==1.13.1
+
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Environment variables
+python-dotenv==1.0.0
+
+# Face recognition / image processing
+opencv-python-headless==4.9.0.80
+numpy==1.26.3
+Pillow==10.2.0
+
+# Utilities
+pydantic==2.5.3
+pydantic-settings==2.1.0
+email-validator==2.2.0
+python-dateutil==2.8.2
+
+# QR Code generation
+qrcode[pil]==7.4.2
+
+# Note:
+# - YOLO/torch object detection is intentionally omitted from the base deploy image.
+#   Exam proctoring still runs in face-only mode when ultralytics is unavailable.
