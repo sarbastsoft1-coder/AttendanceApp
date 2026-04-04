@@ -21,6 +21,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   CameraController? _cameraController;
   final List<CapturedImage> _capturedImages = [];
   bool _isCameraReady = false;
+  String? _cameraError;
   bool _isCapturing = false;
   int _previewQuarterTurns = 0;
   static const int _requiredImages = 2;
@@ -65,8 +66,14 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
   Future<void> _initCamera() async {
     try {
+      if (PlatformUtils.requiresSecureWebCameraContext) {
+        throw Exception(PlatformUtils.webCameraContextMessage);
+      }
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
+        setState(() {
+          _cameraError = tRead('No cameras found');
+        });
         _showError(tRead('No cameras found'));
         return;
       }
@@ -89,9 +96,16 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
       if (mounted) {
         setState(() {
           _isCameraReady = true;
+          _cameraError = null;
         });
       }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _cameraError = e.toString().replaceFirst('Exception: ', '');
+          _isCameraReady = false;
+        });
+      }
       _showError(
         tRead('Failed to initialize camera: {error}', params: {'error': '$e'}),
       );
@@ -280,7 +294,28 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
                           ),
                         ],
                       )
-                    : const Center(child: CircularProgressIndicator()),
+                    : Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: _cameraError == null
+                              ? const CircularProgressIndicator()
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _cameraError!,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    OutlinedButton.icon(
+                                      onPressed: _initCamera,
+                                      icon: const Icon(Icons.refresh),
+                                      label: Text(t('Retry')),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
               ),
             ),
           ),
@@ -419,7 +454,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
   Widget _buildCameraPreview() {
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: Text(_cameraError ?? t('Camera not available')));
     }
 
     final previewSize = _cameraController!.value.previewSize;

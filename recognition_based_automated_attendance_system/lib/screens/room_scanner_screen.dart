@@ -59,6 +59,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
   CameraController? _controller;
   bool _isLoadingClasses = true;
   String? _classLoadError;
+  String? _cameraError;
   List<_RoomScannerClassOption> _classes = [];
   _RoomScannerClassOption? _selectedClass;
   bool _isInitializing = true;
@@ -113,6 +114,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
       _selectedClass = classOption;
       _isInitializing = true;
       _result = null;
+      _cameraError = null;
     });
     await _initializeCamera();
   }
@@ -127,9 +129,28 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
     if (!mounted) return;
 
-    final cameras = await availableCameras();
+    late final List<CameraDescription> cameras;
+    try {
+      if (PlatformUtils.requiresSecureWebCameraContext) {
+        throw Exception(PlatformUtils.webCameraContextMessage);
+      }
+      cameras = await availableCameras();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _cameraError = e.toString().replaceFirst('Exception: ', '');
+        _isInitializing = false;
+      });
+      return;
+    }
+
     if (cameras.isEmpty) {
-      if (mounted) setState(() => _isInitializing = false);
+      if (mounted) {
+        setState(() {
+          _cameraError = tRead('No cameras found');
+          _isInitializing = false;
+        });
+      }
       return;
     }
 
@@ -260,7 +281,17 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
     if (_isInitializing) {
       return Scaffold(
         appBar: AppBar(title: Text(t('Room Scanner'))),
-        body: const Center(child: CircularProgressIndicator()),
+        body: _cameraError == null
+            ? const Center(child: CircularProgressIndicator())
+            : Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    _cameraError!,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
       );
     }
 
@@ -425,7 +456,32 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
   Widget _buildScannerInterface() {
     if (_controller == null || !_controller!.value.isInitialized) {
-      return Center(child: Text(t('Camera not available')));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _cameraError ?? t('Camera not available'),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _isInitializing = true;
+                    _cameraError = null;
+                  });
+                  _initializeCamera();
+                },
+                icon: const Icon(Icons.refresh),
+                label: Text(t('Retry')),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     final mediaQuery = MediaQuery.of(context);
@@ -516,7 +572,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
   Widget _buildCameraPreview() {
     if (_controller == null || !_controller!.value.isInitialized) {
-      return Center(child: Text(t('Camera not available')));
+      return Center(child: Text(_cameraError ?? t('Camera not available')));
     }
 
     final previewSize = _controller!.value.previewSize;

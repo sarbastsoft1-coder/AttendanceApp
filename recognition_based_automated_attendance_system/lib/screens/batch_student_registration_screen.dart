@@ -52,6 +52,7 @@ class _BatchStudentRegistrationScreenState
   // Camera
   CameraController? _cameraController;
   bool _isCameraReady = false;
+  String? _cameraError;
   int _previewQuarterTurns = 0;
 
   // Images for current student
@@ -78,8 +79,15 @@ class _BatchStudentRegistrationScreenState
 
   Future<void> _initCamera() async {
     try {
+      if (PlatformUtils.requiresSecureWebCameraContext) {
+        throw Exception(PlatformUtils.webCameraContextMessage);
+      }
+
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
+        setState(() {
+          _cameraError = tRead('No cameras found');
+        });
         _showError(tRead('No cameras found'));
         return;
       }
@@ -102,9 +110,16 @@ class _BatchStudentRegistrationScreenState
       if (mounted) {
         setState(() {
           _isCameraReady = true;
+          _cameraError = null;
         });
       }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _cameraError = e.toString().replaceFirst('Exception: ', '');
+          _isCameraReady = false;
+        });
+      }
       _showError(
         tRead('Failed to initialize camera: {error}', params: {'error': '$e'}),
       );
@@ -707,7 +722,28 @@ class _BatchStudentRegistrationScreenState
                       borderRadius: BorderRadius.circular(16),
                       color: Colors.grey.shade200,
                     ),
-                    child: const Center(child: CircularProgressIndicator()),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: _cameraError == null
+                            ? const CircularProgressIndicator()
+                            : Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _cameraError!,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: _initCamera,
+                                    icon: const Icon(Icons.refresh),
+                                    label: Text(t('Retry')),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
                   ),
                 const SizedBox(height: 16),
 
