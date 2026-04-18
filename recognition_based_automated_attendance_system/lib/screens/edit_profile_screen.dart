@@ -182,9 +182,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       if (val == null || val.trim().isEmpty) {
                         return t('Name cannot be empty');
                       }
-                      if (val.trim().length < 2) {
-                        return t('Name must be at least 2 characters');
-                      }
                       return null;
                     },
                   ),

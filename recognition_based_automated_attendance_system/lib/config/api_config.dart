@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,7 +11,16 @@ class ApiConfig {
     'API_BASE_URL',
     defaultValue: '',
   );
-  static const String _desktopDefaultBaseUrl = 'http://localhost:8000';
+  static const String _desktopDefaultBaseUrl = 'http://127.0.0.1:8000';
+  static const List<String> _desktopFallbackBaseUrls = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8001',
+    'http://localhost:8001',
+    'http://127.0.0.1:8010',
+    'http://localhost:8010',
+    'http://127.0.0.1:8011',
+    'http://localhost:8011',
+  ];
   static const String _baseUrlKey = 'api_base_url';
 
   static final String _defaultBaseUrl = _resolveDefaultBaseUrl();
@@ -19,6 +29,11 @@ class ApiConfig {
   static String _normalizeBaseUrl(String url) {
     return url.trim().replaceAll(RegExp(r'/$'), '');
   }
+
+  static List<String> get _desktopDiscoveryBaseUrls => [
+    _desktopDefaultBaseUrl,
+    ..._desktopFallbackBaseUrls,
+  ];
 
   static String _resolveDefaultBaseUrl() {
     if (_configuredBaseUrl.trim().isNotEmpty) {
@@ -39,26 +54,124 @@ class ApiConfig {
       _runtimeBaseUrl = _defaultBaseUrl;
       return;
     }
+
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_baseUrlKey);
-    _runtimeBaseUrl = saved == null || saved.trim().isEmpty
-        ? _defaultBaseUrl
+    final normalizedSaved = saved == null || saved.trim().isEmpty
+        ? null
         : _normalizeBaseUrl(saved);
+
+    final preferred = normalizedSaved ?? _defaultBaseUrl;
+    final resolved = await _resolveDesktopBaseUrl(preferred);
+    _runtimeBaseUrl = resolved;
+
+    if (normalizedSaved != resolved) {
+      await prefs.setString(_baseUrlKey, resolved);
+    }
   }
 
   /// Persist a new base URL and update the runtime value
   static Future<void> setBaseUrl(String url) async {
-    _runtimeBaseUrl = _normalizeBaseUrl(url);
+    final normalizedUrl = _normalizeBaseUrl(url);
+    _runtimeBaseUrl = normalizedUrl;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_baseUrlKey, _runtimeBaseUrl);
+    await prefs.setString(_baseUrlKey, normalizedUrl);
   }
 
   /// Reset base URL to the default
-  static Future<void> resetBaseUrl() async {
-    await setBaseUrl(_defaultBaseUrl);
+  static Future<String> resetBaseUrl() async {
+    if (kIsWeb) {
+      await setBaseUrl(_defaultBaseUrl);
+      return _runtimeBaseUrl;
+    }
+
+    final resolved = await _resolveDesktopBaseUrl(_defaultBaseUrl);
+    await setBaseUrl(resolved);
+    return _runtimeBaseUrl;
   }
 
   static String get defaultBaseUrl => _defaultBaseUrl;
+
+  static Future<String> _resolveDesktopBaseUrl(String preferred) async {
+    final candidates = <String>[];
+    final seen = <String>{};
+
+    void addCandidate(String url) {
+      final normalized = _normalizeBaseUrl(url);
+      if (normalized.isEmpty || seen.contains(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      candidates.add(normalized);
+    }
+
+    addCandidate(preferred);
+    for (final candidate in _desktopDiscoveryBaseUrls) {
+      addCandidate(candidate);
+    }
+
+    for (final candidate in candidates) {
+      if (await _isHealthyBaseUrl(candidate)) {
+        return candidate;
+      }
+    }
+
+    return preferred;
+  }
+
+  static Future<bool> isAttendanceBackend(String url) async {
+    return _isHealthyBaseUrl(_normalizeBaseUrl(url));
+  }
+
+  static Future<String> resolveDesktopBaseUrl([String? preferred]) async {
+    final candidate = preferred == null || preferred.trim().isEmpty
+        ? _runtimeBaseUrl
+        : preferred;
+    return _resolveDesktopBaseUrl(candidate);
+  }
+
+  static Future<bool> _isHealthyBaseUrl(String url) async {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: url,
+        connectTimeout: const Duration(milliseconds: 1200),
+        receiveTimeout: const Duration(milliseconds: 1200),
+        validateStatus: (_) => true,
+      ),
+    );
+
+    try {
+      final response = await dio.get('/health');
+      if (response.statusCode != 200) {
+        return false;
+      }
+
+      final data = response.data;
+      if (data is! Map || data['status'] != 'healthy') {
+        return false;
+      }
+
+      final openApi = await dio.get('/openapi.json');
+      if (openApi.statusCode != 200 || openApi.data is! Map) {
+        return false;
+      }
+
+      final openApiData = openApi.data as Map;
+      final info = openApiData['info'];
+      final paths = openApiData['paths'];
+      if (info is! Map || paths is! Map) {
+        return false;
+      }
+
+      return info['title'] == 'Recognition Based Automated Attendance System' &&
+          paths.containsKey('/api/auth/register') &&
+          paths.containsKey('/api/auth/login-json');
+    } catch (_) {
+      return false;
+    } finally {
+      dio.close(force: true);
+    }
+  }
 
   // ─── Timeouts ────────────────────────────────────────────────────────────────
   static const int connectionTimeout = 120000; // 2 minutes
@@ -136,5 +249,15 @@ class ApiConfig {
       '/api/qr/session/$sessionId';
 
   // ─── Exam Proctoring ─────────────────────────────────────────────────────────
+  static const String supervisionOverview = '/api/supervision/overview';
+  static const String supervisionGroups = '/api/supervision/groups';
+  static String supervisionGroupInvites(int groupId) =>
+      '/api/supervision/groups/$groupId/invites';
+  static String supervisionInvitationById(int inviteId) =>
+      '/api/supervision/invitations/$inviteId';
+  static String supervisionGroupMember(int groupId, int teacherId) =>
+      '/api/supervision/groups/$groupId/members/$teacherId';
+  static const String supervisionClassShares = '/api/supervision/class-shares';
+
   static const String examProctor = '/api/exam-proctor';
 }

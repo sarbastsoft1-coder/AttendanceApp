@@ -67,7 +67,6 @@ class AuthProvider with ChangeNotifier {
           'password': password,
           'phone': phone,
           'department': department,
-          'role': 'teacher',
         },
       );
 
@@ -93,6 +92,7 @@ class AuthProvider with ChangeNotifier {
     required String email,
     required String password,
     bool rememberMe = false,
+    String? adminAccessKey,
   }) async {
     _setLoading(true);
     _error = null;
@@ -100,7 +100,12 @@ class AuthProvider with ChangeNotifier {
     try {
       final response = await _api.post(
         ApiConfig.authLogin,
-        data: {'email': email, 'password': password},
+        data: {
+          'email': email,
+          'password': password,
+          if (adminAccessKey != null && adminAccessKey.trim().isNotEmpty)
+            'admin_access_key': adminAccessKey.trim(),
+        },
       );
 
       final data = response.data;

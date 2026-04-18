@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
+import '../utils/input_validators.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_textfield.dart';
 
@@ -341,13 +342,18 @@ class _EmailStep extends StatelessWidget {
                 hint: context.t('Enter your registered email'),
                 prefixIcon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
+                autofillHints: const [
+                  AutofillHints.username,
+                  AutofillHints.email,
+                ],
+                autocorrect: false,
+                enableSuggestions: false,
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) {
+                  final email = val?.trim() ?? '';
+                  if (email.isEmpty) {
                     return context.t('Please enter your email address');
                   }
-                  if (!RegExp(
-                    r'^[\w\.-]+@[\w\.-]+\.\w+$',
-                  ).hasMatch(val.trim())) {
+                  if (!isValidEmailAddress(email)) {
                     return context.t('Please enter a valid email address');
                   }
                   return null;

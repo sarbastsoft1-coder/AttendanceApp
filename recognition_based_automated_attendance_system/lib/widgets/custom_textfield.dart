@@ -20,6 +20,10 @@ class CustomTextField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final FocusNode? focusNode;
   final bool autofocus;
+  final Iterable<String>? autofillHints;
+  final bool autocorrect;
+  final bool? enableSuggestions;
+  final TextCapitalization textCapitalization;
 
   const CustomTextField({
     super.key,
@@ -38,6 +42,10 @@ class CustomTextField extends StatefulWidget {
     this.textInputAction,
     this.focusNode,
     this.autofocus = false,
+    this.autofillHints,
+    this.autocorrect = true,
+    this.enableSuggestions,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -102,6 +110,16 @@ class _CustomTextFieldState extends State<CustomTextField> {
         textInputAction: widget.textInputAction,
         focusNode: _focusNode,
         autofocus: widget.autofocus,
+        autofillHints: widget.autofillHints,
+        autocorrect: widget.autocorrect,
+        enableSuggestions: widget.enableSuggestions ?? !widget.obscureText,
+        textCapitalization: widget.textCapitalization,
+        smartDashesType: widget.obscureText
+            ? SmartDashesType.disabled
+            : SmartDashesType.enabled,
+        smartQuotesType: widget.obscureText
+            ? SmartQuotesType.disabled
+            : SmartQuotesType.enabled,
         style: const TextStyle(fontSize: 15, color: AppTheme.textPrimary),
         cursorColor: AppTheme.primaryColor,
         decoration: InputDecoration(

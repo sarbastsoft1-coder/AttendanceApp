@@ -58,6 +58,33 @@ class ClassImportResult {
   });
 }
 
+class _PendingClassImport {
+  final int firstRowNumber;
+  final Map<String, dynamic> payload;
+  final List<String> studentNames = [];
+  final Set<String> _studentKeys = <String>{};
+
+  _PendingClassImport({
+    required this.firstRowNumber,
+    required this.payload,
+  });
+
+  void addStudent(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+
+    final normalizedKey = trimmed.toLowerCase();
+    if (_studentKeys.contains(normalizedKey)) {
+      return;
+    }
+
+    _studentKeys.add(normalizedKey);
+    studentNames.add(trimmed);
+  }
+}
+
 class StudentManagementProvider with ChangeNotifier {
   final ApiService _api = ApiService();
 
@@ -257,11 +284,20 @@ class StudentManagementProvider with ChangeNotifier {
       final fileName =
           'students_${_safeFileName(classObj.name)}_${DateTime.now().millisecondsSinceEpoch}.csv';
       final buffer = StringBuffer()
-        ..writeln('id,name,class_id,has_registered_face,created_at');
+        ..writeln(
+          'id,name,class_id,linked_user_id,has_registered_face,face_image_path,face_image_url,created_at',
+        );
 
       for (final student in students) {
         buffer.writeln(
-          '${student.id},${_escapeCsv(student.name)},${student.classId},${student.hasRegisteredFace},${student.createdAt.toIso8601String()}',
+          '${student.id},'
+          '${_escapeCsv(student.name)},'
+          '${student.classId},'
+          '${student.linkedUserId ?? ''},'
+          '${student.hasRegisteredFace},'
+          '${_escapeCsv(student.faceImagePath ?? '')},'
+          '${_escapeCsv(student.faceImageUrl ?? '')},'
+          '${student.createdAt.toIso8601String()}',
         );
       }
 
@@ -333,7 +369,7 @@ class StudentManagementProvider with ChangeNotifier {
       final buffer = StringBuffer()
         ..write('\uFEFF')
         ..writeln(
-          'class_id,class_name,subject,room,start_time,end_time,meeting_days,student_count,class_created_at,student_id,student_name,linked_user_id,has_registered_face,student_created_at',
+          'class_id,class_name,subject,room,start_time,end_time,meeting_days,student_count,class_created_at,student_id,student_name,linked_user_id,has_registered_face,face_image_path,face_image_url,student_created_at',
         );
 
       if (students.isEmpty) {
@@ -347,7 +383,7 @@ class StudentManagementProvider with ChangeNotifier {
           '${_escapeCsv(classObj.meetingDays.join(" | "))},'
           '${classObj.studentCount},'
           '${_formatCsvDateTime(classObj.createdAt)},'
-          ',,,,',
+          ',,,,,,',
         );
       } else {
         for (final student in students) {
@@ -365,6 +401,8 @@ class StudentManagementProvider with ChangeNotifier {
             '${_escapeCsv(student.name)},'
             '${student.linkedUserId ?? ''},'
             '${student.hasRegisteredFace},'
+            '${_escapeCsv(student.faceImagePath ?? '')},'
+            '${_escapeCsv(student.faceImageUrl ?? '')},'
             '${_formatCsvDateTime(student.createdAt)}',
           );
         }
@@ -425,38 +463,120 @@ class StudentManagementProvider with ChangeNotifier {
         'meetingdays',
         'days',
       ]);
+      final classIdIndex = _findHeaderIndex(headers, ['class_id']);
+      final studentNameIndex = _findHeaderIndex(headers, [
+        'student_name',
+        'student',
+      ]);
+      final isClassSnapshotImport =
+          classIdIndex != -1 || studentNameIndex != -1;
 
       var successCount = 0;
       final errors = <String>[];
 
-      for (var rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-        final row = rows[rowIndex];
-        if (row.every((value) => value.trim().isEmpty)) {
-          continue;
-        }
+      if (!isClassSnapshotImport) {
+        for (var rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+          final row = rows[rowIndex];
+          if (row.every((value) => value.trim().isEmpty)) {
+            continue;
+          }
 
-        final name = _csvCellValue(row, nameIndex).trim();
-        if (name.isEmpty) {
-          errors.add('Row ${rowIndex + 1}: missing class name.');
-          continue;
-        }
+          final name = _csvCellValue(row, nameIndex).trim();
+          if (name.isEmpty) {
+            errors.add('Row ${rowIndex + 1}: missing class name.');
+            continue;
+          }
 
-        final payload = _buildClassPayload(
-          name: name,
-          subject: _csvCellValue(row, subjectIndex),
-          room: _csvCellValue(row, roomIndex),
-          startTime: _csvCellValue(row, startTimeIndex),
-          endTime: _csvCellValue(row, endTimeIndex),
-          meetingDays: _parseMeetingDays(_csvCellValue(row, meetingDaysIndex)),
-        );
-
-        try {
-          await _api.post(ApiConfig.classes, data: payload);
-          successCount++;
-        } catch (e) {
-          errors.add(
-            'Row ${rowIndex + 1}: ${e.toString().replaceFirst('Exception: ', '')}',
+          final payload = _buildClassPayload(
+            name: name,
+            subject: _csvCellValue(row, subjectIndex),
+            room: _csvCellValue(row, roomIndex),
+            startTime: _csvCellValue(row, startTimeIndex),
+            endTime: _csvCellValue(row, endTimeIndex),
+            meetingDays: _parseMeetingDays(_csvCellValue(row, meetingDaysIndex)),
           );
+
+          try {
+            await _api.post(ApiConfig.classes, data: payload);
+            successCount++;
+          } catch (e) {
+            errors.add(
+              'Row ${rowIndex + 1}: ${e.toString().replaceFirst('Exception: ', '')}',
+            );
+          }
+        }
+      } else {
+        final pendingImports = <String, _PendingClassImport>{};
+
+        for (var rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+          final row = rows[rowIndex];
+          if (row.every((value) => value.trim().isEmpty)) {
+            continue;
+          }
+
+          final name = _csvCellValue(row, nameIndex).trim();
+          if (name.isEmpty) {
+            errors.add('Row ${rowIndex + 1}: missing class name.');
+            continue;
+          }
+
+          final payload = _buildClassPayload(
+            name: name,
+            subject: _csvCellValue(row, subjectIndex),
+            room: _csvCellValue(row, roomIndex),
+            startTime: _csvCellValue(row, startTimeIndex),
+            endTime: _csvCellValue(row, endTimeIndex),
+            meetingDays: _parseMeetingDays(_csvCellValue(row, meetingDaysIndex)),
+          );
+
+          final importKey = _buildClassImportKey(
+            row: row,
+            classIdIndex: classIdIndex,
+            payload: payload,
+          );
+          final pendingImport = pendingImports.putIfAbsent(
+            importKey,
+            () => _PendingClassImport(
+              firstRowNumber: rowIndex + 1,
+              payload: payload,
+            ),
+          );
+
+          final studentName = _csvCellValue(row, studentNameIndex).trim();
+          if (studentName.isNotEmpty) {
+            pendingImport.addStudent(studentName);
+          }
+        }
+
+        for (final pendingImport in pendingImports.values) {
+          try {
+            final response = await _api.post(
+              ApiConfig.classes,
+              data: pendingImport.payload,
+            );
+            final createdClass = ClassModel.fromJson(
+              Map<String, dynamic>.from(response.data as Map),
+            );
+
+            if (pendingImport.studentNames.isNotEmpty) {
+              final studentImportResult = await _importStudentNames(
+                classId: createdClass.id,
+                studentNames: pendingImport.studentNames,
+              );
+
+              for (final error in studentImportResult.errors) {
+                errors.add(
+                  'Class "${createdClass.name}": $error',
+                );
+              }
+            }
+
+            successCount++;
+          } catch (e) {
+            errors.add(
+              'Row ${pendingImport.firstRowNumber}: ${e.toString().replaceFirst('Exception: ', '')}',
+            );
+          }
         }
       }
 
@@ -468,8 +588,12 @@ class StudentManagementProvider with ChangeNotifier {
         errorCount: errors.length,
         errors: errors,
         message: errors.isEmpty
-            ? 'Classes imported successfully.'
-            : 'Class import completed with some skipped rows.',
+            ? (isClassSnapshotImport
+                  ? 'Classes and students imported successfully.'
+                  : 'Classes imported successfully.')
+            : (isClassSnapshotImport
+                  ? 'Class import completed with some skipped rows or students.'
+                  : 'Class import completed with some skipped rows.'),
       );
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
@@ -594,6 +718,61 @@ class StudentManagementProvider with ChangeNotifier {
       return '';
     }
     return row[index].trim();
+  }
+
+  String _buildClassImportKey({
+    required List<String> row,
+    required int classIdIndex,
+    required Map<String, dynamic> payload,
+  }) {
+    final classId = _csvCellValue(row, classIdIndex).trim();
+    if (classId.isNotEmpty) {
+      return 'class_id:$classId';
+    }
+
+    final meetingDays =
+        ((payload['meeting_days'] as List?) ?? const <String>[])
+            .map((value) => value.toString().trim().toLowerCase())
+            .join('|');
+
+    return [
+      (payload['name'] as String? ?? '').trim().toLowerCase(),
+      (payload['subject'] as String? ?? '').trim().toLowerCase(),
+      (payload['room'] as String? ?? '').trim().toLowerCase(),
+      (payload['start_time'] as String? ?? '').trim().toLowerCase(),
+      (payload['end_time'] as String? ?? '').trim().toLowerCase(),
+      meetingDays,
+    ].join('::');
+  }
+
+  Future<StudentImportResult> _importStudentNames({
+    required int classId,
+    required List<String> studentNames,
+  }) async {
+    final buffer = StringBuffer()..writeln('name');
+    for (final studentName in studentNames) {
+      buffer.writeln(_escapeCsv(studentName));
+    }
+
+    final formData = FormData();
+    formData.fields.add(MapEntry('class_id', classId.toString()));
+    formData.files.add(
+      MapEntry(
+        'csv_file',
+        MultipartFile.fromBytes(
+          utf8.encode(buffer.toString()),
+          filename: 'students_import.csv',
+        ),
+      ),
+    );
+
+    final response = await _api.post(
+      ApiConfig.bulkImportStudents,
+      data: formData,
+    );
+    return StudentImportResult.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
   }
 
   List<String> _parseMeetingDays(String rawValue) {

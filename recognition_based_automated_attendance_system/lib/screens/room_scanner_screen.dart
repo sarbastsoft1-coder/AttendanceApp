@@ -1,10 +1,6 @@
-import 'dart:io';
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_theme.dart';
 import '../config/api_config.dart';
@@ -14,9 +10,6 @@ import '../providers/attendance_provider.dart';
 import '../models/attendance_model.dart';
 import '../services/api_service.dart';
 import '../utils/camera_selector.dart';
-import '../utils/download_text_file_stub.dart'
-    if (dart.library.html) '../utils/download_text_file_web.dart'
-    as download_text_file;
 import '../utils/platform_utils.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/loading_widget.dart';
@@ -243,6 +236,19 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
 
       if (!mounted) return;
 
+      if (result == null) {
+        setState(() {
+          _isProcessing = false;
+        });
+        final errorMessage =
+            attendanceProvider.error ??
+            tRead('Room scan failed. Please try again.');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(errorMessage)));
+        return;
+      }
+
       setState(() {
         _result = result;
         _isProcessing = false;
@@ -286,10 +292,7 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
             : Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Text(
-                    _cameraError!,
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text(_cameraError!, textAlign: TextAlign.center),
                 ),
               ),
       );
@@ -533,33 +536,11 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
                     onPressed: _captureAndScan,
                     icon: Icons.qr_code_scanner,
                   ),
-                  const SizedBox(height: 12),
-                  CustomButton(
-                    text: 'EXPORT ABSENT',
-                    onPressed: _exportAbsent,
-                    isOutlined: true,
-                    icon: Icons.download,
-                  ),
                 ] else ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: CustomButton(
-                          text: 'START ROOM SCAN',
-                          onPressed: _captureAndScan,
-                          icon: Icons.qr_code_scanner,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: CustomButton(
-                          text: 'EXPORT ABSENT',
-                          onPressed: _exportAbsent,
-                          isOutlined: true,
-                          icon: Icons.download,
-                        ),
-                      ),
-                    ],
+                  CustomButton(
+                    text: 'START ROOM SCAN',
+                    onPressed: _captureAndScan,
+                    icon: Icons.qr_code_scanner,
                   ),
                 ],
               ],
@@ -843,75 +824,5 @@ class _RoomScannerScreenState extends State<RoomScannerScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _exportAbsent() async {
-    if (_result == null || _result!.absentUsers.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tRead('No absent attendees to export.'))),
-      );
-      return;
-    }
-
-    String escapeCsv(String value) {
-      final escaped = value.replaceAll('"', '""');
-      if (escaped.contains(',') ||
-          escaped.contains('\n') ||
-          escaped.contains('"')) {
-        return '"$escaped"';
-      }
-      return escaped;
-    }
-
-    try {
-      final buffer = StringBuffer();
-      buffer.writeln('Class,Name,Email,Department');
-      final selectedClassName = _selectedClass?.name ?? '';
-
-      for (final user in _result!.absentUsers) {
-        final department = user.department ?? '';
-        buffer.writeln(
-          '${escapeCsv(selectedClassName)},${escapeCsv(user.fullName)},${escapeCsv(user.email)},${escapeCsv(department)}',
-        );
-      }
-
-      final fileName =
-          'absent_export_class_${_selectedClass?.id ?? 'na'}_${DateTime.now().millisecondsSinceEpoch}.csv';
-      if (kIsWeb) {
-        await download_text_file.downloadTextFile(fileName, buffer.toString());
-      } else {
-        final directory = await getApplicationDocumentsDirectory();
-        final exportFile = File(path.join(directory.path, fileName));
-        await exportFile.writeAsString(buffer.toString());
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            tRead(
-              'Saved {count} absent records to {fileName}',
-              params: {
-                'count': '${_result!.absentUsers.length}',
-                'fileName': fileName,
-              },
-            ),
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            tRead(
-              'Failed to export absent list: {error}',
-              params: {'error': '$e'},
-            ),
-          ),
-        ),
-      );
-    }
   }
 }

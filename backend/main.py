@@ -11,21 +11,24 @@ import asyncio
 from datetime import datetime, date, timedelta
 from typing import List, Optional
 from math import ceil
+from urllib.parse import quote, urlparse
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Query, Form, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 
 from database import (
     get_db, SessionLocal, User, Attendance, Class, Student, init_db,
-    PasswordResetToken, LeaveRequest, Setting, AuditLog, QRSession, Notification
+    PasswordResetToken, LeaveRequest, Setting, AuditLog, QRSession, Notification,
+    TeacherGroup, TeacherGroupMember, TeacherGroupInvite, GroupSharedClass,
 )
 from models import (
-    Token, UserCreate, UserLogin, UserUpdate, UserResponse, UserWithToken,
+    Token, UserCreate, ManagedUserCreate, UserLogin, UserUpdate, UserResponse, UserWithToken,
     AttendanceCreate, AttendanceResponse, AttendanceStats, AttendanceReport, AttendanceUpdate,
     AttendanceManualCreate, PaginatedAttendance,
     FaceRegistrationResponse, FaceRecognitionResult, DashboardStats, RoomScanResponse,
@@ -39,12 +42,16 @@ from models import (
     NotificationResponse, NotificationMarkRead, UnreadCountResponse,
     RollCallSubmit, RollCallResponse,
     BulkImportResponse,
+    TeacherGroupCreate, TeacherGroupInviteCreate, TeacherGroupInviteRespond,
+    TeacherGroupMemberUpdate, TeacherGroupMemberResponse, TeacherGroupInviteResponse,
+    TeacherGroupResponse, GroupSharedClassCreate, GroupSharedClassResponse,
+    SupervisionOverviewResponse,
 )
 from auth import (
     get_password_hash, verify_password, create_access_token, authenticate_user,
     get_current_user, get_current_active_user, get_current_admin_user
 )
-from face_service import face_service, exam_proctor_service
+from face_service import FACE_IMAGES_DIR, face_service, exam_proctor_service
 
 load_dotenv()
 
@@ -66,6 +73,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/face-images", StaticFiles(directory=FACE_IMAGES_DIR), name="face-images")
 
 
 def _get_face_recognition_module():
@@ -116,6 +124,288 @@ def _get_settings(db: Session) -> AppSettings:
     )
 
 
+ADMIN_ROLES = {"admin", "super_admin"}
+TEACHER_ROLES = {"teacher", "super_teacher"}
+GROUP_CREATOR_ROLES = ADMIN_ROLES | TEACHER_ROLES
+GROUP_MANAGER_ROLES = {"admin", "super_admin", "super_teacher"}
+SHARE_TARGET_ROLES = {"teacher", "super_teacher"}
+MANAGEABLE_USER_ROLES = {"teacher", "super_teacher", "admin", "super_admin"}
+
+
+def _display_role_name(role: str) -> str:
+    return {
+        "teacher": "user",
+        "super_teacher": "super user",
+    }.get(role, role.replace("_", " "))
+
+
+def _is_admin_role(user: User) -> bool:
+    return user.role in ADMIN_ROLES
+
+
+def _is_teacher_role(user: User) -> bool:
+    return user.role in TEACHER_ROLES
+
+
+def _manageable_roles_for_user(user: User) -> set[str]:
+    if user.role == "super_admin":
+        return MANAGEABLE_USER_ROLES
+    if user.role == "admin":
+        return {"teacher", "super_teacher", "admin"}
+    return set()
+
+
+def _ensure_user_role_can_be_assigned(current_user: User, role: str) -> None:
+    if role not in MANAGEABLE_USER_ROLES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user role")
+    if role not in _manageable_roles_for_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to assign that role",
+        )
+
+
+def _ensure_user_account_can_be_managed(current_user: User, target_user: User) -> None:
+    if target_user.role == "super_admin" and current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only super admins can manage super admin accounts",
+        )
+
+
+def _require_admin_login_key(user: User, provided_key: Optional[str]) -> None:
+    if user.role not in ADMIN_ROLES:
+        return
+
+    normalized_key = (provided_key or "").strip()
+    if not normalized_key:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access key is required",
+        )
+
+    if user.admin_access_key_hash and verify_password(
+        normalized_key,
+        user.admin_access_key_hash,
+    ):
+        return
+
+    configured_key = os.getenv("ADMIN_LOGIN_KEY", "").strip()
+    if configured_key and secrets.compare_digest(normalized_key, configured_key):
+        return
+
+    if not configured_key and not user.admin_access_key_hash:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin login key is not configured",
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Invalid admin access key",
+    )
+
+
+def _resolve_managed_admin_access_key(
+    current_user: User,
+    role: str,
+    provided_key: Optional[str],
+) -> Optional[str]:
+    normalized_key = (provided_key or "").strip()
+    if role not in ADMIN_ROLES:
+        return None
+
+    if len(normalized_key) < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admin accounts must include an admin access key",
+        )
+
+    if current_user.role == "admin" and role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only super admins can create super admin accounts",
+        )
+
+    return get_password_hash(normalized_key)
+
+
+def _can_manage_classes(user: User) -> bool:
+    return _is_admin_role(user) or _is_teacher_role(user)
+
+
+def _can_review_leave_requests(user: User) -> bool:
+    return _can_manage_classes(user)
+
+
+def _has_global_group_access(user: User) -> bool:
+    return user.role in GROUP_MANAGER_ROLES
+
+
+def _can_manage_groups(user: User) -> bool:
+    return _has_global_group_access(user)
+
+
+def _can_create_groups(user: User) -> bool:
+    return user.role in GROUP_CREATOR_ROLES
+
+
+def _can_manage_group(user: User, group: TeacherGroup) -> bool:
+    return _has_global_group_access(user) or group.created_by_id == user.id
+
+
+def _is_group_member(db: Session, user_id: int, group_id: int) -> bool:
+    return (
+        db.query(TeacherGroupMember)
+        .filter(
+            TeacherGroupMember.group_id == group_id,
+            TeacherGroupMember.teacher_id == user_id,
+        )
+        .first()
+        is not None
+    )
+
+
+def _user_group_ids(db: Session, user_id: int) -> List[int]:
+    return [
+        row.group_id
+        for row in db.query(TeacherGroupMember.group_id)
+        .filter(TeacherGroupMember.teacher_id == user_id)
+        .all()
+    ]
+
+
+def _shared_class_ids_for_user(db: Session, user_id: int) -> List[int]:
+    group_ids = _user_group_ids(db, user_id)
+    if not group_ids:
+        return []
+    return [
+        row.class_id
+        for row in db.query(GroupSharedClass.class_id)
+        .filter(GroupSharedClass.group_id.in_(group_ids))
+        .all()
+    ]
+
+
+def _accessible_class_ids_for_user(db: Session, user: User) -> List[int]:
+    class_ids = set(_shared_class_ids_for_user(db, user.id))
+    if _can_manage_classes(user):
+        owned_ids = (
+            db.query(Class.id)
+            .filter(Class.teacher_id == user.id)
+            .all()
+        )
+        class_ids.update(row.id for row in owned_ids)
+    return sorted(class_ids)
+
+
+def _can_access_class(db: Session, user: User, class_obj: Class) -> bool:
+    if _is_admin_role(user) or class_obj.teacher_id == user.id:
+        return True
+    return class_obj.id in _shared_class_ids_for_user(db, user.id)
+
+
+def _can_edit_class(db: Session, user: User, class_obj: Class) -> bool:
+    return _is_admin_role(user) or class_obj.teacher_id == user.id
+
+
+def _group_member_to_response(member: TeacherGroupMember) -> TeacherGroupMemberResponse:
+    return TeacherGroupMemberResponse(
+        id=member.id,
+        teacher_id=member.teacher_id,
+        teacher_name=member.teacher.full_name if member.teacher else "",
+        teacher_email=member.teacher.email if member.teacher else "",
+        teacher_role=member.teacher.role if member.teacher else "teacher",
+        joined_at=member.joined_at,
+    )
+
+
+def _group_invite_to_response(invite: TeacherGroupInvite) -> TeacherGroupInviteResponse:
+    return TeacherGroupInviteResponse(
+        id=invite.id,
+        group_id=invite.group_id,
+        email=invite.email,
+        invited_by_id=invite.invited_by_id,
+        invited_by_name=invite.invited_by.full_name if invite.invited_by else None,
+        teacher_id=invite.teacher_id,
+        teacher_name=invite.teacher.full_name if invite.teacher else None,
+        target_role=invite.target_role,
+        status=invite.status,
+        note=invite.note,
+        created_at=invite.created_at,
+        responded_at=invite.responded_at,
+    )
+
+
+def _group_shared_class_to_response(shared: GroupSharedClass) -> GroupSharedClassResponse:
+    return GroupSharedClassResponse(
+        id=shared.id,
+        group_id=shared.group_id,
+        class_id=shared.class_id,
+        class_name=shared.class_ref.name if shared.class_ref else "",
+        shared_by_id=shared.shared_by_id,
+        shared_by_name=shared.shared_by.full_name if shared.shared_by else None,
+        created_at=shared.created_at,
+    )
+
+
+def _ensure_group_member(db: Session, group_id: int, teacher_id: int) -> TeacherGroupMember:
+    member = (
+        db.query(TeacherGroupMember)
+        .filter(
+            TeacherGroupMember.group_id == group_id,
+            TeacherGroupMember.teacher_id == teacher_id,
+        )
+        .first()
+    )
+    if member is not None:
+        return member
+
+    member = TeacherGroupMember(group_id=group_id, teacher_id=teacher_id)
+    db.add(member)
+    db.flush()
+    return member
+
+
+def _group_to_response(
+    group: TeacherGroup,
+    db: Session,
+    current_user: Optional[User] = None,
+) -> TeacherGroupResponse:
+    members = (
+        db.query(TeacherGroupMember)
+        .filter(TeacherGroupMember.group_id == group.id)
+        .order_by(TeacherGroupMember.joined_at.asc())
+        .all()
+    )
+    invitations = (
+        db.query(TeacherGroupInvite)
+        .filter(TeacherGroupInvite.group_id == group.id)
+        .order_by(TeacherGroupInvite.created_at.desc())
+        .all()
+    )
+    shared_classes = (
+        db.query(GroupSharedClass)
+        .filter(GroupSharedClass.group_id == group.id)
+        .order_by(GroupSharedClass.created_at.desc())
+        .all()
+    )
+
+    return TeacherGroupResponse(
+        id=group.id,
+        name=group.name,
+        description=group.description,
+        created_by_id=group.created_by_id,
+        created_by_name=group.created_by.full_name if group.created_by else None,
+        can_manage=_can_manage_group(current_user, group) if current_user else False,
+        created_at=group.created_at,
+        updated_at=group.updated_at,
+        members=[_group_member_to_response(member) for member in members],
+        invitations=[_group_invite_to_response(invite) for invite in invitations],
+        shared_classes=[_group_shared_class_to_response(shared) for shared in shared_classes],
+    )
+
+
 def _write_audit(
     db: Session,
     actor_id: Optional[int],
@@ -139,6 +429,89 @@ def _write_audit(
         db.flush()
     except Exception as e:
         print(f"Warning: audit log write failed: {e}")
+
+
+def _origin_from_url(url: Optional[str]) -> Optional[str]:
+    """Extract scheme + host from a full URL."""
+    if not url:
+        return None
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return None
+
+    if not parsed.scheme or not parsed.netloc:
+        return None
+
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _build_face_image_url(request: Optional[Request], stored_path: Optional[str]) -> Optional[str]:
+    """Build a public URL for a stored face image path."""
+    if request is None or not stored_path:
+        return None
+
+    try:
+        abs_root = os.path.abspath(FACE_IMAGES_DIR)
+        abs_path = os.path.abspath(stored_path)
+        if os.path.commonpath([abs_root, abs_path]) != abs_root:
+            return None
+        relative_path = os.path.relpath(abs_path, abs_root).replace(os.sep, "/")
+    except Exception:
+        return None
+
+    return f"{str(request.base_url).rstrip('/')}/face-images/{quote(relative_path, safe='/')}"
+
+
+def _latest_face_image_in_folder(folder_hint: Optional[str]) -> Optional[str]:
+    if not folder_hint:
+        return None
+
+    folder_path = os.path.join(FACE_IMAGES_DIR, folder_hint)
+    if not os.path.isdir(folder_path):
+        return None
+
+    files = [
+        os.path.join(folder_path, name)
+        for name in os.listdir(folder_path)
+        if os.path.isfile(os.path.join(folder_path, name))
+    ]
+    if not files:
+        return None
+
+    return max(files, key=os.path.getmtime)
+
+
+def _resolve_face_image_path(stored_path: Optional[str], folder_hint: Optional[str] = None) -> Optional[str]:
+    """Resolve a usable local face image path, falling back to the latest file for the user/student folder."""
+    if stored_path:
+        abs_path = os.path.abspath(stored_path)
+        if os.path.exists(abs_path):
+            return abs_path
+
+    fallback = _latest_face_image_in_folder(folder_hint)
+    if fallback:
+        return fallback
+
+    return os.path.abspath(stored_path) if stored_path else None
+
+
+def _build_qr_scan_url(request: Request, token: str) -> str:
+    """Build a browser-friendly QR link that opens the frontend scan route."""
+    frontend_base = os.getenv("FRONTEND_BASE_URL", "").strip()
+    if not frontend_base:
+        frontend_base = (
+            request.headers.get("origin", "").strip()
+            or _origin_from_url(request.headers.get("referer"))
+            or ""
+        )
+
+    if frontend_base:
+        return f"{frontend_base.rstrip('/')}/#/qr-scan?token={token}"
+
+    base_url = os.getenv("APP_BASE_URL", "").strip() or str(request.base_url).rstrip("/")
+    return f"{base_url}/api/qr/scan/{token}"
 
 
 def _delete_class_with_dependencies(
@@ -341,6 +714,7 @@ def _class_to_response(class_obj: Class, db: Session) -> ClassResponse:
 
 def _user_to_response(user: User) -> UserResponse:
     """Safely map User model to UserResponse."""
+    resolved_face_image_path = _resolve_face_image_path(user.face_image_path, str(user.id))
     return UserResponse(
         id=user.id,
         email=user.email,
@@ -348,11 +722,58 @@ def _user_to_response(user: User) -> UserResponse:
         phone=user.phone,
         department=user.department,
         role=user.role,
+        face_image_path=resolved_face_image_path,
         has_registered_face=user.has_registered_face,
         is_active=user.is_active,
         is_verified=user.is_verified,
         created_at=user.created_at or datetime.utcnow()
     )
+
+
+def _student_to_response(student: Student, request: Optional[Request] = None) -> StudentResponse:
+    resolved_face_image_path = _resolve_face_image_path(
+        student.face_image_path,
+        f"student_{student.id}",
+    )
+    return StudentResponse(
+        id=student.id,
+        name=student.name,
+        class_id=student.class_id,
+        linked_user_id=student.linked_user_id,
+        face_image_path=resolved_face_image_path,
+        face_image_url=_build_face_image_url(request, resolved_face_image_path),
+        has_registered_face=student.has_registered_face,
+        created_at=student.created_at or datetime.utcnow(),
+    )
+
+
+def _attendance_face_image_path(db: Session, attendance: Attendance) -> Optional[str]:
+    if attendance.student_id is not None:
+        student = db.query(Student).filter(Student.id == attendance.student_id).first()
+        if student:
+            resolved_path = _resolve_face_image_path(
+                student.face_image_path,
+                f"student_{student.id}",
+            )
+            if resolved_path:
+                return resolved_path
+
+    if attendance.user:
+        resolved_path = _resolve_face_image_path(
+            attendance.user.face_image_path,
+            str(attendance.user.id),
+        )
+        if resolved_path:
+            return resolved_path
+
+    if attendance.user_id is not None:
+        user = attendance.user or db.query(User).filter(User.id == attendance.user_id).first()
+        if user:
+            resolved_path = _resolve_face_image_path(user.face_image_path, str(user.id))
+            if resolved_path:
+                return resolved_path
+
+    return None
 
 
 def _managed_student_email(student_id: int) -> str:
@@ -499,7 +920,7 @@ async def register(user_data: UserCreate, request: Request, db: Session = Depend
         hashed_password=get_password_hash(user_data.password),
         phone=user_data.phone,
         department=user_data.department,
-        role=user_data.role or "teacher",
+        role="teacher",
         verification_token=verification_token,
     )
     db.add(new_user)
@@ -519,7 +940,11 @@ async def register(user_data: UserCreate, request: Request, db: Session = Depend
 
 
 @app.post("/api/auth/login", response_model=Token, tags=["Authentication"])
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    admin_access_key: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
     """Login and get access token (form-encoded, used by Swagger)"""
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -528,6 +953,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
                             headers={"WWW-Authenticate": "Bearer"})
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled")
+    _require_admin_login_key(user, admin_access_key)
 
     access_token = create_access_token(data={"sub": user.email, "user_id": user.id})
     return Token(access_token=access_token)
@@ -541,6 +967,7 @@ async def login_json(user_data: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled")
+    _require_admin_login_key(user, user_data.admin_access_key)
 
     access_token = create_access_token(data={"sub": user.email, "user_id": user.id})
     return UserWithToken(
@@ -672,6 +1099,52 @@ async def change_password(
 # USER ENDPOINTS
 # ========================
 
+@app.post("/api/users", response_model=UserResponse, tags=["Users"])
+async def create_user(
+    user_data: ManagedUserCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    _ensure_user_role_can_be_assigned(current_user, user_data.role)
+    admin_access_key_hash = _resolve_managed_admin_access_key(
+        current_user,
+        user_data.role,
+        user_data.admin_access_key,
+    )
+
+    verification_token = secrets.token_hex(32)
+    new_user = User(
+        email=user_data.email,
+        full_name=user_data.full_name,
+        hashed_password=get_password_hash(user_data.password),
+        phone=user_data.phone,
+        department=user_data.department,
+        role=user_data.role,
+        verification_token=verification_token,
+        admin_access_key_hash=admin_access_key_hash,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    _write_audit(
+        db,
+        current_user.id,
+        "create_user",
+        "User",
+        new_user.id,
+        f"Created {new_user.role} account: {new_user.email}",
+        request.client.host if request.client else None,
+    )
+    db.commit()
+
+    return UserResponse.model_validate(new_user)
+
 @app.get("/api/users", response_model=List[UserResponse], tags=["Users"])
 async def get_users(
     skip: int = 0,
@@ -696,7 +1169,7 @@ async def get_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if current_user.role != "admin" and current_user.id != user_id:
+    if not _is_admin_role(current_user) and current_user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -712,19 +1185,23 @@ async def update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if current_user.role != "admin" and current_user.id != user_id:
+    if not _is_admin_role(current_user) and current_user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     # Non-admins cannot change role or is_active
-    if current_user.role != "admin":
+    if not _is_admin_role(current_user):
         user_data.role = None
         user_data.is_active = None
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if _is_admin_role(current_user):
+        _ensure_user_account_can_be_managed(current_user, user)
 
     update_data = user_data.model_dump(exclude_unset=True, exclude_none=True)
+    if "role" in update_data:
+        _ensure_user_role_can_be_assigned(current_user, update_data["role"])
     for field, value in update_data.items():
         setattr(user, field, value)
 
@@ -750,6 +1227,7 @@ async def delete_user(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    _ensure_user_account_can_be_managed(current_user, user)
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
@@ -988,8 +1466,8 @@ async def manual_attendance(
     current_user: User = Depends(get_current_active_user)
 ):
     """Manually create an attendance record (teacher/admin only)"""
-    if current_user.role not in ("admin", "teacher"):
-        raise HTTPException(status_code=403, detail="Only teachers and admins can add manual attendance")
+    if not _can_manage_classes(current_user):
+        raise HTTPException(status_code=403, detail="Only users and admins can add manual attendance")
 
     settings = _get_settings(db)
     if not settings.allow_manual_entry:
@@ -1012,7 +1490,7 @@ async def manual_attendance(
         class_obj = db.query(Class).filter(Class.id == student.class_id).first()
         if not class_obj:
             raise HTTPException(status_code=404, detail="Class not found")
-        if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+        if not _can_access_class(db, current_user, class_obj):
             raise HTTPException(status_code=403, detail="Not authorized for this class")
         managed_user = _ensure_student_linked_user(db, student, class_obj)
         resolved_user_id = managed_user.id
@@ -1077,13 +1555,13 @@ async def submit_roll_call(
     current_user: User = Depends(get_current_active_user)
 ):
     """Submit a manual roll call for an entire class (teacher/admin)"""
-    if current_user.role not in ("admin", "teacher"):
-        raise HTTPException(status_code=403, detail="Only teachers and admins can submit roll calls")
+    if not _can_manage_classes(current_user):
+        raise HTTPException(status_code=403, detail="Only users and admins can submit roll calls")
 
     class_obj = db.query(Class).filter(Class.id == data.class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_access_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized for this class")
 
     attendance_date = data.attendance_date or datetime.now()
@@ -1170,12 +1648,13 @@ async def get_today_attendance(
 ):
     today = date.today()
     query = db.query(Attendance).filter(func.date(Attendance.date) == today)
-    if current_user.role == "teacher":
-        teacher_class_ids = db.query(Class.id).filter(
-            Class.teacher_id == current_user.id
-        )
-        query = query.filter(Attendance.class_id.in_(teacher_class_ids))
-    elif current_user.role != "admin":
+    if _is_teacher_role(current_user):
+        accessible_class_ids = _accessible_class_ids_for_user(db, current_user)
+        if accessible_class_ids:
+            query = query.filter(Attendance.class_id.in_(accessible_class_ids))
+        else:
+            query = query.filter(Attendance.user_id == current_user.id)
+    elif not _is_admin_role(current_user):
         query = query.filter(Attendance.user_id == current_user.id)
 
     records = query.order_by(Attendance.check_in_time.desc()).all()
@@ -1196,12 +1675,15 @@ async def get_attendance_history(
     """Get paginated attendance history with optional filters"""
     query = db.query(Attendance)
 
-    if current_user.role == "teacher":
-        teacher_class_ids = db.query(Class.id).filter(
-            Class.teacher_id == current_user.id
-        )
-        query = query.filter(Attendance.class_id.in_(teacher_class_ids))
-    elif current_user.role != "admin":
+    if _is_teacher_role(current_user):
+        accessible_class_ids = _accessible_class_ids_for_user(db, current_user)
+        if accessible_class_ids:
+            query = query.filter(Attendance.class_id.in_(accessible_class_ids))
+        else:
+            query = query.filter(Attendance.user_id == current_user.id)
+        if user_id:
+            query = query.filter(Attendance.user_id == user_id)
+    elif not _is_admin_role(current_user):
         query = query.filter(Attendance.user_id == current_user.id)
     elif user_id:
         query = query.filter(Attendance.user_id == user_id)
@@ -1238,7 +1720,7 @@ async def get_attendance_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if current_user.role != "admin" and current_user.id != user_id:
+    if not _is_admin_role(current_user) and current_user.id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     settings = _get_settings(db)
@@ -1277,12 +1759,16 @@ async def update_attendance_status(
     current_user: User = Depends(get_current_active_user)
 ):
     """Update attendance status (teacher/admin only)"""
-    if current_user.role not in ("admin", "teacher"):
-        raise HTTPException(status_code=403, detail="Only teachers and admins can update attendance")
+    if not _can_manage_classes(current_user):
+        raise HTTPException(status_code=403, detail="Only users and admins can update attendance")
 
     attendance = db.query(Attendance).filter(Attendance.id == attendance_id).first()
     if not attendance:
         raise HTTPException(status_code=404, detail="Attendance record not found")
+    if attendance.class_id is not None:
+        class_obj = db.query(Class).filter(Class.id == attendance.class_id).first()
+        if class_obj and not _can_access_class(db, current_user, class_obj):
+            raise HTTPException(status_code=403, detail="Not authorized for this class")
 
     old_status = attendance.status
     attendance.status = data.status
@@ -1302,15 +1788,26 @@ async def update_attendance_status(
 
 @app.get("/api/attendance/export", tags=["Attendance"])
 async def export_attendance_csv(
+    request: Request,
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     class_id: Optional[int] = Query(None),
     user_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_current_active_user)
 ):
-    """Export attendance history as CSV (Admin only)"""
+    """Export attendance history as CSV (teacher/admin)."""
+    if not _can_manage_classes(current_user):
+        raise HTTPException(status_code=403, detail="Only users and admins can export attendance")
+
     query = db.query(Attendance)
+
+    if _is_teacher_role(current_user):
+        accessible_class_ids = _accessible_class_ids_for_user(db, current_user)
+        if accessible_class_ids:
+            query = query.filter(Attendance.class_id.in_(accessible_class_ids))
+        else:
+            query = query.filter(Attendance.user_id == current_user.id)
 
     if start_date:
         query = query.filter(func.date(Attendance.date) >= start_date)
@@ -1325,13 +1822,28 @@ async def export_attendance_csv(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "Student Name", "Class", "Email", "Date", "Check-In Time",
-                     "Check-Out Time", "Status", "Method", "Confidence", "Notes"])
+    writer.writerow([
+        "ID",
+        "Student Name",
+        "Class",
+        "Email",
+        "Date",
+        "Check-In Time",
+        "Check-Out Time",
+        "Status",
+        "Method",
+        "Confidence",
+        "Notes",
+        "Face Image Path",
+        "Face Image URL",
+    ])
 
     for r in records:
         response = _attendance_to_response(db, r)
         display_name = response.student_name or (response.user.full_name if response.user else "Unknown")
         display_email = response.user.email if response.user else ""
+        face_image_path = _attendance_face_image_path(db, r)
+        face_image_url = _build_face_image_url(request, face_image_path)
         writer.writerow([
             r.id,
             display_name,
@@ -1343,7 +1855,9 @@ async def export_attendance_csv(
             r.status,
             r.method,
             f"{r.confidence:.2f}" if r.confidence else "N/A",
-            r.notes or ""
+            r.notes or "",
+            face_image_path or "",
+            face_image_url or "",
         ])
 
     output.seek(0)
@@ -1385,13 +1899,11 @@ async def room_scan(
 
     # ── Class-based scan ──────────────────────────────────────────────────────
     if class_id is not None:
-        class_query = db.query(Class).filter(Class.id == class_id)
-        if current_user.role != "admin":
-            class_query = class_query.filter(Class.teacher_id == current_user.id)
-
-        class_obj = class_query.first()
+        class_obj = db.query(Class).filter(Class.id == class_id).first()
         if not class_obj:
             raise HTTPException(status_code=404, detail="Class not found")
+        if not _can_access_class(db, current_user, class_obj):
+            raise HTTPException(status_code=403, detail="Not authorized for this class")
 
         expected_students = db.query(Student).filter(
             Student.class_id == class_id,
@@ -1567,8 +2079,8 @@ async def create_qr_session(
     current_user: User = Depends(get_current_active_user)
 ):
     """Create a QR attendance session for a class (teacher/admin)"""
-    if current_user.role not in ("admin", "teacher"):
-        raise HTTPException(status_code=403, detail="Only teachers and admins can create QR sessions")
+    if not _can_manage_classes(current_user):
+        raise HTTPException(status_code=403, detail="Only users and admins can create QR sessions")
 
     settings = _get_settings(db)
     if not settings.allow_qr_attendance:
@@ -1577,7 +2089,7 @@ async def create_qr_session(
     class_obj = db.query(Class).filter(Class.id == data.class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_access_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized for this class")
 
     # Deactivate any existing active sessions for this class
@@ -1605,7 +2117,6 @@ async def create_qr_session(
                  request.client.host if request.client else None)
     db.commit()
 
-    base_url = os.getenv("APP_BASE_URL", "http://localhost:8000")
     return QRSessionResponse(
         id=session.id,
         class_id=session.class_id,
@@ -1615,13 +2126,14 @@ async def create_qr_session(
         is_active=session.is_active,
         session_date=session.session_date,
         created_at=session.created_at,
-        qr_url=f"{base_url}/api/qr/scan/{session.token}",
+        qr_url=_build_qr_scan_url(request, session.token),
     )
 
 
 @app.get("/api/qr/session/{class_id}", response_model=Optional[QRSessionResponse], tags=["QR Attendance"])
 async def get_active_qr_session(
     class_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -1636,7 +2148,6 @@ async def get_active_qr_session(
         return None
 
     class_obj = db.query(Class).filter(Class.id == class_id).first()
-    base_url = os.getenv("APP_BASE_URL", "http://localhost:8000")
     return QRSessionResponse(
         id=session.id,
         class_id=session.class_id,
@@ -1646,7 +2157,7 @@ async def get_active_qr_session(
         is_active=session.is_active,
         session_date=session.session_date,
         created_at=session.created_at,
-        qr_url=f"{base_url}/api/qr/scan/{session.token}",
+        qr_url=_build_qr_scan_url(request, session.token),
     )
 
 
@@ -1708,16 +2219,429 @@ async def deactivate_qr_session(
     current_user: User = Depends(get_current_active_user)
 ):
     """Deactivate a QR session"""
-    if current_user.role not in ("admin", "teacher"):
+    if not _can_manage_classes(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     session = db.query(QRSession).filter(QRSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    class_obj = db.query(Class).filter(Class.id == session.class_id).first()
+    if class_obj and not _can_access_class(db, current_user, class_obj):
+        raise HTTPException(status_code=403, detail="Not authorized for this class")
 
     session.is_active = False
     db.commit()
     return {"message": "QR session deactivated"}
+
+
+# ========================
+# SUPERVISION ENDPOINTS
+# ========================
+
+@app.get("/api/supervision/overview", response_model=SupervisionOverviewResponse, tags=["Supervision"])
+async def get_supervision_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Supervisor hub data for teachers and admins."""
+    if _has_global_group_access(current_user):
+        groups = db.query(TeacherGroup).order_by(TeacherGroup.created_at.desc()).all()
+        invitations = (
+            db.query(TeacherGroupInvite)
+            .order_by(TeacherGroupInvite.created_at.desc())
+            .all()
+        )
+    else:
+        group_ids = _user_group_ids(db, current_user.id)
+        if group_ids:
+            groups = (
+                db.query(TeacherGroup)
+                .filter(TeacherGroup.id.in_(group_ids))
+                .order_by(TeacherGroup.created_at.desc())
+                .all()
+            )
+        else:
+            groups = []
+        invitations = (
+            db.query(TeacherGroupInvite)
+            .filter(
+                or_(
+                    func.lower(TeacherGroupInvite.email) == current_user.email.lower(),
+                    TeacherGroupInvite.teacher_id == current_user.id,
+                )
+            )
+            .order_by(TeacherGroupInvite.created_at.desc())
+            .all()
+        )
+
+    if _is_admin_role(current_user):
+        shareable_classes = (
+            db.query(Class)
+            .order_by(Class.created_at.desc())
+            .all()
+        )
+    elif _is_teacher_role(current_user):
+        shareable_classes = (
+            db.query(Class)
+            .filter(Class.teacher_id == current_user.id)
+            .order_by(Class.created_at.desc())
+            .all()
+        )
+    else:
+        shareable_classes = []
+
+    pending_leave_count = (
+        db.query(LeaveRequest)
+        .filter(LeaveRequest.status == "pending")
+        .count()
+        if _can_review_leave_requests(current_user)
+        else 0
+    )
+
+    return SupervisionOverviewResponse(
+        can_create_groups=_can_create_groups(current_user),
+        can_manage_groups=_has_global_group_access(current_user),
+        can_share_classes=_can_manage_classes(current_user),
+        pending_leave_count=pending_leave_count,
+        groups=[_group_to_response(group, db, current_user) for group in groups],
+        invitations=[_group_invite_to_response(invite) for invite in invitations],
+        shareable_classes=[_class_to_response(class_obj, db) for class_obj in shareable_classes],
+    )
+
+
+@app.post("/api/supervision/groups", response_model=TeacherGroupResponse, tags=["Supervision"])
+async def create_teacher_group(
+    data: TeacherGroupCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Create a school teacher group."""
+    if not _can_create_groups(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Only user and admin accounts can create user groups",
+        )
+
+    group = TeacherGroup(
+        name=data.name.strip(),
+        description=(data.description or "").strip() or None,
+        created_by_id=current_user.id,
+    )
+    db.add(group)
+    db.flush()
+
+    _ensure_group_member(db, group.id, current_user.id)
+
+    db.commit()
+    db.refresh(group)
+
+    _write_audit(
+        db,
+        current_user.id,
+        "create_teacher_group",
+        "TeacherGroup",
+        group.id,
+        f"Created user group {group.name}",
+        request.client.host if request.client else None,
+    )
+    db.commit()
+    return _group_to_response(group, db, current_user)
+
+
+@app.post("/api/supervision/groups/{group_id}/invites", response_model=TeacherGroupResponse, tags=["Supervision"])
+async def invite_teachers_to_group(
+    group_id: int,
+    data: TeacherGroupInviteCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Invite teachers to a group by email."""
+    group = db.query(TeacherGroup).filter(TeacherGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="User group not found")
+    if not _can_manage_group(current_user, group):
+        raise HTTPException(
+            status_code=403,
+            detail="Only group owners, super users, and admins can invite users",
+        )
+    if data.target_role not in SHARE_TARGET_ROLES:
+        raise HTTPException(status_code=400, detail="Invalid user target role")
+    if data.target_role == "super_teacher" and not _has_global_group_access(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Only admins and super users can invite super users",
+        )
+
+    normalized_emails = []
+    seen_emails = set()
+    for email in data.emails:
+        value = email.strip().lower()
+        if value in seen_emails:
+            continue
+        seen_emails.add(value)
+        normalized_emails.append(value)
+
+    for email in normalized_emails:
+        existing_user = db.query(User).filter(func.lower(User.email) == email).first()
+        if existing_user and existing_user.role not in (TEACHER_ROLES | ADMIN_ROLES):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{email} is not a user account and cannot be added to a user group",
+            )
+
+        if existing_user and _is_group_member(db, existing_user.id, group_id):
+            if (
+                data.target_role == "super_teacher"
+                and _has_global_group_access(current_user)
+                and existing_user.role == "teacher"
+            ):
+                existing_user.role = "super_teacher"
+                _push_notification(
+                    db,
+                    existing_user.id,
+                    "Supervisor Access Updated",
+                    f"You were promoted to super user in {group.name}.",
+                    "system",
+                )
+            continue
+
+        existing_invite = (
+            db.query(TeacherGroupInvite)
+            .filter(
+                TeacherGroupInvite.group_id == group_id,
+                func.lower(TeacherGroupInvite.email) == email,
+                TeacherGroupInvite.status == "pending",
+            )
+            .first()
+        )
+        if existing_invite:
+            continue
+
+        invite = TeacherGroupInvite(
+            group_id=group_id,
+            email=email,
+            invited_by_id=current_user.id,
+            teacher_id=existing_user.id if existing_user else None,
+            target_role=data.target_role,
+            note=(data.note or "").strip() or None,
+        )
+        db.add(invite)
+        db.flush()
+
+        if existing_user:
+            _push_notification(
+                db,
+                existing_user.id,
+                "User Group Invitation",
+                f"You were invited to join {group.name} as {_display_role_name(data.target_role)}.",
+                "system",
+                "teacher_group_invite",
+                invite.id,
+            )
+
+    _write_audit(
+        db,
+        current_user.id,
+        "invite_teachers_to_group",
+        "TeacherGroup",
+        group.id,
+        f"Invited {len(normalized_emails)} users to {group.name}",
+        request.client.host if request.client else None,
+    )
+    db.commit()
+    db.refresh(group)
+    return _group_to_response(group, db, current_user)
+
+
+@app.patch("/api/supervision/invitations/{invite_id}", response_model=TeacherGroupInviteResponse, tags=["Supervision"])
+async def respond_to_teacher_group_invitation(
+    invite_id: int,
+    data: TeacherGroupInviteRespond,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Accept or reject a teacher group invitation."""
+    invite = db.query(TeacherGroupInvite).filter(TeacherGroupInvite.id == invite_id).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    if invite.status != "pending":
+        raise HTTPException(status_code=400, detail="Invitation already processed")
+    if invite.email.lower() != current_user.email.lower() and invite.teacher_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to respond to this invitation")
+    if current_user.role not in (TEACHER_ROLES | ADMIN_ROLES):
+        raise HTTPException(status_code=400, detail="Only user accounts can join user groups")
+
+    invite.status = data.status
+    invite.teacher_id = current_user.id
+    invite.responded_at = datetime.utcnow()
+
+    if data.status == "accepted":
+        _ensure_group_member(db, invite.group_id, current_user.id)
+        if invite.target_role == "super_teacher" and current_user.role == "teacher":
+            current_user.role = "super_teacher"
+        _push_notification(
+            db,
+            invite.invited_by_id,
+            "User Invitation Accepted",
+            f"{current_user.full_name} joined {invite.group.name if invite.group else 'the user group'}.",
+            "system",
+            "teacher_group_invite",
+            invite.id,
+        )
+    else:
+        _push_notification(
+            db,
+            invite.invited_by_id,
+            "User Invitation Rejected",
+            f"{current_user.full_name} rejected the invitation to {invite.group.name if invite.group else 'the user group'}.",
+            "system",
+            "teacher_group_invite",
+            invite.id,
+        )
+
+    _write_audit(
+        db,
+        current_user.id,
+        f"{data.status}_teacher_group_invitation",
+        "TeacherGroupInvite",
+        invite.id,
+        f"{current_user.email} {data.status} group invitation {invite.id}",
+        request.client.host if request.client else None,
+    )
+    db.commit()
+    db.refresh(invite)
+    return _group_invite_to_response(invite)
+
+
+@app.patch("/api/supervision/groups/{group_id}/members/{teacher_id}", response_model=TeacherGroupResponse, tags=["Supervision"])
+async def update_teacher_group_member_role(
+    group_id: int,
+    teacher_id: int,
+    data: TeacherGroupMemberUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Promote or demote a teacher inside the supervision flow."""
+    if not _can_manage_groups(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Only admins and super users can update user group roles",
+        )
+
+    group = db.query(TeacherGroup).filter(TeacherGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="User group not found")
+
+    member = (
+        db.query(TeacherGroupMember)
+        .filter(
+            TeacherGroupMember.group_id == group_id,
+            TeacherGroupMember.teacher_id == teacher_id,
+        )
+        .first()
+    )
+    if not member or not member.teacher:
+        raise HTTPException(status_code=404, detail="User group member not found")
+
+    member.teacher.role = data.role
+    _push_notification(
+        db,
+        member.teacher_id,
+        "Supervisor Access Updated",
+        f"Your supervision role in {group.name} is now {_display_role_name(data.role)}.",
+        "system",
+    )
+    _write_audit(
+        db,
+        current_user.id,
+        "update_teacher_group_member_role",
+        "TeacherGroup",
+        group.id,
+        f"Set {member.teacher.email} to {data.role} in {group.name}",
+        request.client.host if request.client else None,
+    )
+    db.commit()
+    db.refresh(group)
+    return _group_to_response(group, db, current_user)
+
+
+@app.post("/api/supervision/class-shares", response_model=GroupSharedClassResponse, tags=["Supervision"])
+async def share_class_with_teacher_group(
+    data: GroupSharedClassCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Share a class with all teachers inside a group."""
+    if not _can_manage_classes(current_user):
+        raise HTTPException(status_code=403, detail="Only users and admins can share classes")
+
+    class_obj = db.query(Class).filter(Class.id == data.class_id).first()
+    if not class_obj:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    group = db.query(TeacherGroup).filter(TeacherGroup.id == data.group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="User group not found")
+
+    if not _can_edit_class(db, current_user, class_obj):
+        raise HTTPException(status_code=403, detail="Only the class owner or admin can share this class")
+    if not _can_manage_groups(current_user) and not _is_group_member(db, current_user.id, group.id):
+        raise HTTPException(status_code=403, detail="You must belong to the user group to share into it")
+
+    existing_share = (
+        db.query(GroupSharedClass)
+        .filter(
+            GroupSharedClass.group_id == data.group_id,
+            GroupSharedClass.class_id == data.class_id,
+        )
+        .first()
+    )
+    if existing_share:
+        return _group_shared_class_to_response(existing_share)
+
+    shared = GroupSharedClass(
+        group_id=data.group_id,
+        class_id=data.class_id,
+        shared_by_id=current_user.id,
+    )
+    db.add(shared)
+    db.flush()
+
+    members = (
+        db.query(TeacherGroupMember)
+        .filter(TeacherGroupMember.group_id == group.id)
+        .all()
+    )
+    for member in members:
+        if member.teacher_id == current_user.id:
+            continue
+        _push_notification(
+            db,
+            member.teacher_id,
+            "Class Shared With Your Group",
+            f"{class_obj.name} is now available through {group.name}.",
+            "system",
+            "shared_class",
+            shared.id,
+        )
+
+    _write_audit(
+        db,
+        current_user.id,
+        "share_class_with_group",
+        "Class",
+        class_obj.id,
+        f"Shared class {class_obj.name} with group {group.name}",
+        request.client.host if request.client else None,
+    )
+    db.commit()
+    db.refresh(shared)
+    return _group_shared_class_to_response(shared)
 
 
 # ========================
@@ -1982,8 +2906,11 @@ async def create_leave_request(
     db.commit()
     db.refresh(leave)
 
-    # Notify admins/teachers
-    admins = db.query(User).filter(User.role.in_(["admin", "teacher"]), User.is_active == True).all()
+    # Notify leave reviewers
+    admins = db.query(User).filter(
+        User.role.in_(list(ADMIN_ROLES | TEACHER_ROLES)),
+        User.is_active == True,
+    ).all()
     requester_name = current_user.full_name
     for admin in admins:
         _push_notification(
@@ -2001,14 +2928,28 @@ async def create_leave_request(
 @app.get("/api/leave", response_model=List[LeaveRequestResponse], tags=["Leave Requests"])
 async def get_leave_requests(
     status_filter: Optional[str] = Query(None),
+    student_id: Optional[int] = Query(None),
+    user_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Get leave requests (own for students, all for admin/teacher)"""
     query = db.query(LeaveRequest)
 
-    if current_user.role not in ("admin", "teacher"):
+    if not _can_review_leave_requests(current_user):
         query = query.filter(LeaveRequest.user_id == current_user.id)
+    else:
+        if student_id is not None and user_id is not None:
+            query = query.filter(
+                or_(
+                    LeaveRequest.student_id == student_id,
+                    LeaveRequest.user_id == user_id,
+                )
+            )
+        elif student_id is not None:
+            query = query.filter(LeaveRequest.student_id == student_id)
+        elif user_id is not None:
+            query = query.filter(LeaveRequest.user_id == user_id)
 
     if status_filter:
         query = query.filter(LeaveRequest.status == status_filter)
@@ -2026,7 +2967,7 @@ async def review_leave_request(
     current_user: User = Depends(get_current_active_user)
 ):
     """Approve or reject a leave request (teacher/admin)"""
-    if current_user.role not in ("admin", "teacher"):
+    if not _can_review_leave_requests(current_user):
         raise HTTPException(status_code=403, detail="Not authorized to review leave requests")
 
     leave = db.query(LeaveRequest).filter(LeaveRequest.id == leave_id).first()
@@ -2090,7 +3031,7 @@ async def delete_leave_request(
     leave = db.query(LeaveRequest).filter(LeaveRequest.id == leave_id).first()
     if not leave:
         raise HTTPException(status_code=404, detail="Leave request not found")
-    if leave.submitted_by_id != current_user.id and current_user.role not in ("admin", "teacher"):
+    if leave.submitted_by_id != current_user.id and not _can_review_leave_requests(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
     if leave.status != "pending":
         raise HTTPException(status_code=400, detail="Cannot delete a reviewed leave request")
@@ -2218,8 +3159,8 @@ async def create_class(
     current_user: User = Depends(get_current_active_user)
 ):
     """Create a new class (teachers and admins only)"""
-    if current_user.role not in ("admin", "teacher"):
-        raise HTTPException(status_code=403, detail="Only teachers and admins can create classes")
+    if not _can_manage_classes(current_user):
+        raise HTTPException(status_code=403, detail="Only users and admins can create classes")
 
     new_class = Class(
         name=class_data.name,
@@ -2248,8 +3189,17 @@ async def get_classes(
     current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Class)
-    if current_user.role != "admin":
-        query = query.filter(Class.teacher_id == current_user.id)
+    if not _is_admin_role(current_user):
+        visible_class_ids = _shared_class_ids_for_user(db, current_user.id)
+        if visible_class_ids:
+            query = query.filter(
+                or_(
+                    Class.teacher_id == current_user.id,
+                    Class.id.in_(visible_class_ids),
+                )
+            )
+        else:
+            query = query.filter(Class.teacher_id == current_user.id)
 
     classes = query.order_by(Class.created_at.desc()).all()
     return [_class_to_response(c, db) for c in classes]
@@ -2264,7 +3214,7 @@ async def get_class(
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_access_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized")
     return _class_to_response(class_obj, db)
 
@@ -2280,7 +3230,7 @@ async def update_class(
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_edit_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     update_data = class_data.model_dump(exclude_unset=True)
@@ -2306,17 +3256,18 @@ async def update_class(
 @app.get("/api/classes/{class_id}/students", response_model=List[StudentResponse], tags=["Classes"])
 async def get_class_students(
     class_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_access_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     students = db.query(Student).filter(Student.class_id == class_id).all()
-    return [StudentResponse.model_validate(s) for s in students]
+    return [_student_to_response(student, request) for student in students]
 
 
 @app.get("/api/classes/{class_id}/attendance", response_model=List[AttendanceResponse], tags=["Classes"])
@@ -2331,7 +3282,7 @@ async def get_class_attendance(
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_access_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     query = db.query(Attendance).filter(Attendance.class_id == class_id)
@@ -2354,7 +3305,7 @@ async def delete_class(
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_access_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     _delete_class_with_dependencies(
@@ -2378,7 +3329,7 @@ async def delete_student(
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_edit_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     student = db.query(Student).filter(
@@ -2412,7 +3363,7 @@ async def update_student(
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_edit_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     student = db.query(Student).filter(
@@ -2428,7 +3379,7 @@ async def update_student(
                  request.client.host if request.client else None)
     db.commit()
     db.refresh(student)
-    return StudentResponse.model_validate(student)
+    return _student_to_response(student, request)
 
 
 @app.post("/api/students/register", response_model=StudentRegistrationResponse, tags=["Students"])
@@ -2440,13 +3391,13 @@ async def register_student(
     current_user: User = Depends(get_current_active_user)
 ):
     """Register a new student with face images (teacher/admin)"""
-    if current_user.role not in ("admin", "teacher"):
-        raise HTTPException(status_code=403, detail="Only teachers and admins can register students")
+    if not _can_manage_classes(current_user):
+        raise HTTPException(status_code=403, detail="Only users and admins can register students")
 
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_edit_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized for this class")
 
     settings = _get_settings(db)
@@ -2515,13 +3466,13 @@ async def bulk_import_students(
     CSV format: name (one column, with header row 'name')
     Students are created without face data; faces registered separately.
     """
-    if current_user.role not in ("admin", "teacher"):
-        raise HTTPException(status_code=403, detail="Only teachers and admins can import students")
+    if not _can_manage_classes(current_user):
+        raise HTTPException(status_code=403, detail="Only users and admins can import students")
 
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
-    if current_user.role != "admin" and class_obj.teacher_id != current_user.id:
+    if not _can_edit_class(db, current_user, class_obj):
         raise HTTPException(status_code=403, detail="Not authorized for this class")
 
     content = await csv_file.read()

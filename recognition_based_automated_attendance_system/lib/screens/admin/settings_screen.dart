@@ -30,7 +30,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Toggle switches
   late bool _allowFace;
-  late bool _allowQr;
   late bool _allowManual;
 
   // Backend URL
@@ -54,7 +53,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _lateHour = 9;
     _lateMinute = 0;
     _allowFace = true;
-    _allowQr = true;
     _allowManual = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -74,7 +72,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _maxFaceController.text = s.maxFaceImages.toString();
       _appNameController.text = s.appName;
       _allowFace = s.allowFaceAttendance;
-      _allowQr = s.allowQrAttendance;
       _allowManual = s.allowManualEntry;
       _hasUnsavedChanges = false;
     });
@@ -111,7 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ? context.tr('appTitle')
           : _appNameController.text.trim(),
       allowFaceAttendance: _allowFace,
-      allowQrAttendance: _allowQr,
+      allowQrAttendance: false,
       allowManualEntry: _allowManual,
     );
 
@@ -140,8 +137,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final url = _urlController.text.trim();
     if (url.isEmpty) return;
 
-    await ApiConfig.setBaseUrl(url);
-    ApiService().setBaseUrl(url);
+    final resolvedUrl = await ApiConfig.resolveDesktopBaseUrl(url);
+    final isValid = await ApiConfig.isAttendanceBackend(resolvedUrl);
+
+    if (!isValid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              'failedToConnect',
+              params: {'reason': 'Attendance backend not found at this URL'},
+            ),
+          ),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return;
+    }
+
+    await ApiConfig.setBaseUrl(resolvedUrl);
+    ApiService().setBaseUrl(ApiConfig.baseUrl);
+    _urlController.text = ApiConfig.baseUrl;
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -163,19 +180,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     try {
-      // Try a GET /health to the new URL
-      final dio = ApiService().createTestDio(url);
-      final response = await dio
-          .get('/health')
-          .timeout(const Duration(seconds: 5));
+      final resolvedUrl = await ApiConfig.resolveDesktopBaseUrl(url);
+      final isValid = await ApiConfig.isAttendanceBackend(resolvedUrl);
       setState(() {
         _isTestingUrl = false;
-        _urlTestSuccess = response.statusCode == 200;
-        _urlTestResult = response.statusCode == 200
-            ? context.tr('connectedHealthy')
+        _urlTestSuccess = isValid;
+        _urlTestResult = isValid
+            ? '${context.tr('connectedHealthy')} ($resolvedUrl)'
             : context.tr(
-                'serverRespondedWithStatus',
-                params: {'code': '${response.statusCode}'},
+                'failedToConnect',
+                params: {'reason': 'Attendance API route check failed'},
               );
       });
     } catch (e) {
@@ -424,9 +438,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 8),
                       GestureDetector(
                         onTap: () async {
-                          _urlController.text = ApiConfig.defaultBaseUrl;
-                          await ApiConfig.resetBaseUrl();
-                          ApiService().setBaseUrl(ApiConfig.defaultBaseUrl);
+                          final resolvedUrl = await ApiConfig.resetBaseUrl();
+                          _urlController.text = resolvedUrl;
+                          ApiService().setBaseUrl(ApiConfig.baseUrl);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -538,17 +552,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const Divider(color: AppTheme.glassBorder, height: 24),
                       _SwitchRow(
-                        icon: Icons.qr_code_scanner_rounded,
-                        title: context.tr('qrCodeAttendance'),
-                        subtitle: context.tr('allowAttendanceQr'),
-                        value: _allowQr,
-                        onChanged: (v) {
-                          setState(() => _allowQr = v);
-                          _markChanged();
-                        },
-                      ),
-                      const Divider(color: AppTheme.glassBorder, height: 24),
-                      _SwitchRow(
                         icon: Icons.edit_note_rounded,
                         title: context.t('Manual Entry'),
                         subtitle: context.tr('allowTeachersManual'),
@@ -590,25 +593,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onChanged: (_) => _markChanged(),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // ── QR Session ────────────────────────────
-                _SectionHeader(
-                  icon: Icons.qr_code_2_rounded,
-                  title: context.tr('qrSession'),
-                ),
-                const SizedBox(height: 12),
-                _SettingsCard(
-                  child: _TextInputRow(
-                    icon: Icons.timer_outlined,
-                    title: context.tr('sessionDuration'),
-                    subtitle: context.tr('minutesActive'),
-                    controller: _qrMinutesController,
-                    suffix: 'min',
-                    keyboardType: TextInputType.number,
-                    onChanged: (_) => _markChanged(),
                   ),
                 ),
                 const SizedBox(height: 24),

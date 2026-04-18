@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -16,9 +17,6 @@ class ResponsiveLayout extends StatelessWidget {
   }
 
   static bool isDesktop(BuildContext context) {
-    if (isNativeDesktop()) {
-      return true;
-    }
     return MediaQuery.of(context).size.width >= 1024;
   }
 
@@ -31,12 +29,78 @@ class ResponsiveLayout extends StatelessWidget {
     return MediaQuery.of(context).size.width < 768;
   }
 
+  static bool isCompact(BuildContext context) {
+    return MediaQuery.of(context).size.width < 480;
+  }
+
+  static double width(BuildContext context) {
+    return MediaQuery.of(context).size.width;
+  }
+
   /// Content max-width for readability on very wide screens
   static double contentMaxWidth(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    if (width > 1600) return 1400;
-    if (width > 1200) return 1100;
+    if (width > 1800) return 1440;
+    if (width > 1500) return 1320;
+    if (width > 1200) return 1120;
     return width;
+  }
+
+  static EdgeInsets pagePadding(
+    BuildContext context, {
+    double compact = 12,
+    double mobile = 16,
+    double tablet = 20,
+    double desktop = 28,
+  }) {
+    final width = MediaQuery.of(context).size.width;
+    final value = width < 480
+        ? compact
+        : width < 768
+        ? mobile
+        : width < 1024
+        ? tablet
+        : desktop;
+    return EdgeInsets.all(value);
+  }
+
+  static double adaptiveValue(
+    BuildContext context, {
+    required double compact,
+    required double mobile,
+    required double tablet,
+    required double desktop,
+  }) {
+    final width = MediaQuery.of(context).size.width;
+    if (width < 480) return compact;
+    if (width < 768) return mobile;
+    if (width < 1024) return tablet;
+    return desktop;
+  }
+
+  static int gridColumns(
+    BuildContext context, {
+    int compact = 1,
+    int mobile = 1,
+    int tablet = 2,
+    int desktop = 3,
+    int wide = 4,
+  }) {
+    final width = MediaQuery.of(context).size.width;
+    if (width < 480) return compact;
+    if (width < 768) return mobile;
+    if (width < 1024) return tablet;
+    if (width < 1440) return desktop;
+    return wide;
+  }
+
+  static double dialogWidth(
+    BuildContext context, {
+    double maxWidth = 520,
+    double outerPadding = 32,
+  }) {
+    final availableWidth = MediaQuery.of(context).size.width - outerPadding;
+    return math.max(280, math.min(maxWidth, availableWidth));
   }
 
   @override

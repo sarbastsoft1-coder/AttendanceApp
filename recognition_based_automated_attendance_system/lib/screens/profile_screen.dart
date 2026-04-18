@@ -54,9 +54,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
 
         return SingleChildScrollView(
-          padding: EdgeInsets.all(ResponsiveLayout.isMobile(context) ? 20 : 28),
+          padding: ResponsiveLayout.pagePadding(context),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1000),
+            constraints: BoxConstraints(
+              maxWidth: ResponsiveLayout.contentMaxWidth(context),
+            ),
             child: ResponsiveLayout.isDesktop(context)
                 ? _buildDesktopProfile(auth, user)
                 : _buildMobileProfile(auth, user),
@@ -67,13 +69,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildDesktopProfile(AuthProvider auth, dynamic user) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(width: 320, child: _buildProfileCard(auth, user)),
-        const SizedBox(width: 24),
-        Expanded(child: _buildActionsPanel(auth)),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 920) {
+          return _buildMobileProfile(auth, user);
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(flex: 4, child: _buildProfileCard(auth, user)),
+            const SizedBox(width: 24),
+            Expanded(flex: 6, child: _buildActionsPanel(auth)),
+          ],
+        );
+      },
     );
   }
 

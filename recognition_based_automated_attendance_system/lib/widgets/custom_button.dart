@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
+import 'decorative_glint.dart';
+import 'loading_widget.dart';
 
 /// Premium Custom Button with hover glow and gradient support
 class CustomButton extends StatefulWidget {
@@ -16,6 +18,8 @@ class CustomButton extends StatefulWidget {
   final double height;
   final double borderRadius;
   final bool useGradient;
+  final bool enableGlint;
+  final bool enablePressAnimation;
 
   const CustomButton({
     super.key,
@@ -30,6 +34,8 @@ class CustomButton extends StatefulWidget {
     this.height = 52,
     this.borderRadius = 12,
     this.useGradient = false,
+    this.enableGlint = true,
+    this.enablePressAnimation = true,
   });
 
   @override
@@ -38,116 +44,148 @@ class CustomButton extends StatefulWidget {
 
 class _CustomButtonState extends State<CustomButton> {
   bool _isHovered = false;
+  bool _isPressed = false;
+
+  bool get _isEnabled => widget.onPressed != null && !widget.isLoading;
+  bool get _shouldShowGlint =>
+      widget.enableGlint &&
+      _isEnabled &&
+      !widget.isOutlined;
+
+  double get _scale {
+    if (!widget.enablePressAnimation || !_isEnabled) {
+      return 1;
+    }
+    return _isPressed ? 0.975 : 1;
+  }
 
   @override
   Widget build(BuildContext context) {
     final translatedText = context.t(widget.text);
+    final borderRadius = BorderRadius.circular(widget.borderRadius);
 
-    if (widget.isOutlined) {
-      return MouseRegion(
+    return Listener(
+      onPointerDown: _isEnabled ? (_) => setState(() => _isPressed = true) : null,
+      onPointerUp: _isEnabled ? (_) => setState(() => _isPressed = false) : null,
+      onPointerCancel: _isEnabled ? (_) => setState(() => _isPressed = false) : null,
+      child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        cursor: widget.onPressed != null
+        cursor: _isEnabled
             ? SystemMouseCursors.click
             : SystemMouseCursors.basic,
-        child: AnimatedContainer(
+        child: AnimatedScale(
+          scale: _scale,
           duration: AppTheme.animFast,
-          width: widget.width ?? double.infinity,
-          height: widget.height,
-          decoration: BoxDecoration(
-            color: _isHovered
-                ? AppTheme.primaryColor.withValues(alpha: 0.08)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-            border: Border.all(
-              color: widget.backgroundColor ?? AppTheme.primaryColor,
-              width: 1.5,
-            ),
-            boxShadow: _isHovered
-                ? [BoxShadow(color: AppTheme.primaryGlow, blurRadius: 12)]
-                : [],
-          ),
-          child: OutlinedButton(
-            onPressed: widget.isLoading ? null : widget.onPressed,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: widget.textColor ?? AppTheme.primaryLight,
-              side: BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(widget.borderRadius),
-              ),
-              padding: EdgeInsets.zero,
-            ),
-            child: _buildChild(context, translatedText),
-          ),
-        ),
-      );
-    }
-
-    final bgColor = widget.backgroundColor ?? AppTheme.primaryColor;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: widget.onPressed != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
-      child: AnimatedContainer(
-        duration: AppTheme.animFast,
-        width: widget.width ?? double.infinity,
-        height: widget.height,
-        decoration: BoxDecoration(
-          gradient: widget.useGradient || !widget.isLoading
-              ? LinearGradient(
-                  colors: [
-                    bgColor,
-                    Color.lerp(bgColor, Colors.black, 0.15) ?? bgColor,
-                  ],
-                )
-              : null,
-          color: widget.useGradient ? null : bgColor,
-          borderRadius: BorderRadius.circular(widget.borderRadius),
-          boxShadow: _isHovered && !widget.isLoading
-              ? [
-                  BoxShadow(
-                    color: bgColor.withValues(alpha: 0.4),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: bgColor.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: ElevatedButton(
-          onPressed: widget.isLoading ? null : widget.onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            foregroundColor: widget.textColor ?? Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(widget.borderRadius),
-            ),
-            padding: EdgeInsets.zero,
-            elevation: 0,
-          ),
-          child: _buildChild(context, translatedText),
+          curve: Curves.easeOutCubic,
+          child: widget.isOutlined
+              ? _buildOutlinedButton(translatedText, borderRadius)
+              : _buildFilledButton(translatedText, borderRadius),
         ),
       ),
     );
   }
 
-  Widget _buildChild(BuildContext context, String translatedText) {
+  Widget _buildOutlinedButton(String translatedText, BorderRadius borderRadius) {
+    return AnimatedContainer(
+      duration: AppTheme.animFast,
+      width: widget.width ?? double.infinity,
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: _isHovered
+            ? AppTheme.primaryColor.withValues(alpha: 0.08)
+            : Colors.transparent,
+        borderRadius: borderRadius,
+        border: Border.all(
+          color: widget.backgroundColor ?? AppTheme.primaryColor,
+          width: 1.5,
+        ),
+        boxShadow: _isHovered
+            ? [BoxShadow(color: AppTheme.primaryGlow, blurRadius: 12)]
+            : [],
+      ),
+      child: OutlinedButton(
+        onPressed: _isEnabled ? widget.onPressed : null,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: widget.textColor ?? AppTheme.primaryLight,
+          side: BorderSide.none,
+          shape: RoundedRectangleBorder(borderRadius: borderRadius),
+          padding: EdgeInsets.zero,
+        ),
+        child: _buildChild(translatedText),
+      ),
+    );
+  }
+
+  Widget _buildFilledButton(String translatedText, BorderRadius borderRadius) {
+    final bgColor = widget.backgroundColor ?? AppTheme.primaryColor;
+
+    return AnimatedContainer(
+      duration: AppTheme.animFast,
+      width: widget.width ?? double.infinity,
+      height: widget.height,
+      decoration: BoxDecoration(
+        gradient: widget.useGradient || !widget.isLoading
+            ? LinearGradient(
+                colors: [
+                  bgColor,
+                  Color.lerp(bgColor, Colors.black, 0.15) ?? bgColor,
+                ],
+              )
+            : null,
+        color: widget.useGradient ? null : bgColor,
+        borderRadius: borderRadius,
+        boxShadow: _isHovered && !widget.isLoading
+            ? [
+                BoxShadow(
+                  color: bgColor.withValues(alpha: 0.4),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: bgColor.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ElevatedButton(
+            onPressed: _isEnabled ? widget.onPressed : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              foregroundColor: widget.textColor ?? Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: borderRadius),
+              padding: EdgeInsets.zero,
+              elevation: 0,
+            ),
+            child: _buildChild(translatedText),
+          ),
+          if (_shouldShowGlint)
+            DecorativeGlint(
+              borderRadius: borderRadius,
+              color: widget.textColor ?? Colors.white,
+              intensity: 0.18,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChild(String translatedText) {
     if (widget.isLoading) {
-      return const SizedBox(
+      return SizedBox(
         width: 22,
         height: 22,
-        child: CircularProgressIndicator(
+        child: BrandedSpinner(
+          size: 22,
+          color: widget.textColor ?? Colors.white,
           strokeWidth: 2.5,
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
         ),
       );
     }

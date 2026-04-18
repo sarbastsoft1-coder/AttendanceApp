@@ -7,10 +7,22 @@ import '../../config/app_theme.dart';
 import '../../localization/localization_extensions.dart';
 import '../../models/class_model.dart';
 import '../../providers/student_management_provider.dart';
+import '../../widgets/responsive_layout.dart';
 import '../batch_student_registration_screen.dart';
 import 'class_attendance_screen.dart';
+import '../student_profile_screen.dart';
 
 enum _ClassExportAction { students, attendance }
+
+enum _ClassToolbarAction {
+  addStudent,
+  importCsv,
+  exportStudents,
+  exportAttendance,
+  viewAttendance,
+}
+
+enum _StudentRowAction { profile, edit, delete }
 
 class ClassStudentsScreen extends StatefulWidget {
   final ClassModel classObj;
@@ -157,6 +169,16 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
     );
   }
 
+  Future<void> _openStudentProfile(Student student) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            StudentProfileScreen(classObj: widget.classObj, student: student),
+      ),
+    );
+  }
+
   Future<void> _importStudentsCsv() async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -200,7 +222,7 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
       builder: (context) => AlertDialog(
         title: Text(t('Import Complete')),
         content: SizedBox(
-          width: 420,
+          width: ResponsiveLayout.dialogWidth(context, maxWidth: 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,56 +323,110 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compactActions = ResponsiveLayout.isCompact(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
           t('{name} Students', params: {'name': widget.classObj.name}),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add_alt_1_rounded),
-            tooltip: t('Add Student'),
-            onPressed: _navigateToAddStudent,
-          ),
-          IconButton(
-            icon: const Icon(Icons.upload_file_rounded),
-            tooltip: t('Import Students CSV'),
-            onPressed: _importStudentsCsv,
-          ),
-          PopupMenuButton<_ClassExportAction>(
-            tooltip: t('Export'),
-            icon: const Icon(Icons.download_rounded),
-            onSelected: (value) {
-              if (value == _ClassExportAction.students) {
-                _exportStudentsCsv();
-              } else if (value == _ClassExportAction.attendance) {
-                _exportAttendanceCsv();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: _ClassExportAction.students,
-                child: Text(t('Export Student List')),
-              ),
-              PopupMenuItem(
-                value: _ClassExportAction.attendance,
-                child: Text(t('Export Attendance CSV')),
-              ),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: t('View Class Attendance'),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      ClassAttendanceScreen(classObj: widget.classObj),
+          if (compactActions)
+            PopupMenuButton<_ClassToolbarAction>(
+              onSelected: (value) {
+                switch (value) {
+                  case _ClassToolbarAction.addStudent:
+                    _navigateToAddStudent();
+                    break;
+                  case _ClassToolbarAction.importCsv:
+                    _importStudentsCsv();
+                    break;
+                  case _ClassToolbarAction.exportStudents:
+                    _exportStudentsCsv();
+                    break;
+                  case _ClassToolbarAction.exportAttendance:
+                    _exportAttendanceCsv();
+                    break;
+                  case _ClassToolbarAction.viewAttendance:
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            ClassAttendanceScreen(classObj: widget.classObj),
+                      ),
+                    );
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: _ClassToolbarAction.addStudent,
+                  child: Text(t('Add Student')),
                 ),
-              );
-            },
-          ),
+                PopupMenuItem(
+                  value: _ClassToolbarAction.importCsv,
+                  child: Text(t('Import Students CSV')),
+                ),
+                PopupMenuItem(
+                  value: _ClassToolbarAction.exportStudents,
+                  child: Text(t('Export Student List')),
+                ),
+                PopupMenuItem(
+                  value: _ClassToolbarAction.exportAttendance,
+                  child: Text(t('Export Attendance CSV')),
+                ),
+                PopupMenuItem(
+                  value: _ClassToolbarAction.viewAttendance,
+                  child: Text(t('View Class Attendance')),
+                ),
+              ],
+            )
+          else ...[
+            IconButton(
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              tooltip: t('Add Student'),
+              onPressed: _navigateToAddStudent,
+            ),
+            IconButton(
+              icon: const Icon(Icons.upload_file_rounded),
+              tooltip: t('Import Students CSV'),
+              onPressed: _importStudentsCsv,
+            ),
+            PopupMenuButton<_ClassExportAction>(
+              tooltip: t('Export'),
+              icon: const Icon(Icons.download_rounded),
+              onSelected: (value) {
+                if (value == _ClassExportAction.students) {
+                  _exportStudentsCsv();
+                } else if (value == _ClassExportAction.attendance) {
+                  _exportAttendanceCsv();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: _ClassExportAction.students,
+                  child: Text(t('Export Student List')),
+                ),
+                PopupMenuItem(
+                  value: _ClassExportAction.attendance,
+                  child: Text(t('Export Attendance CSV')),
+                ),
+              ],
+            ),
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: t('View Class Attendance'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        ClassAttendanceScreen(classObj: widget.classObj),
+                  ),
+                );
+              },
+            ),
+          ],
         ],
       ),
       body: Consumer<StudentManagementProvider>(
@@ -406,16 +482,24 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: ResponsiveLayout.pagePadding(
+              context,
+              compact: 12,
+              mobile: 16,
+              tablet: 20,
+              desktop: 20,
+            ),
             itemCount: provider.students.length,
             itemBuilder: (context, index) {
               final student = provider.students[index];
+              final compactRow = ResponsiveLayout.isCompact(context);
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: ListTile(
+                  onTap: () => _openStudentProfile(student),
                   leading: CircleAvatar(
                     backgroundColor: AppTheme.primaryColor.withValues(
                       alpha: 0.1,
@@ -434,36 +518,75 @@ class _ClassStudentsScreenState extends State<ClassStudentsScreen> {
                         ? t('Face Registered')
                         : t('No Face Data'),
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        student.hasRegisteredFace
-                            ? Icons.check_circle
-                            : Icons.warning_amber_rounded,
-                        color: student.hasRegisteredFace
-                            ? AppTheme.successColor
-                            : AppTheme.warningColor,
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.edit_outlined,
-                          color: AppTheme.primaryColor,
+                  trailing: compactRow
+                      ? PopupMenuButton<_StudentRowAction>(
+                          onSelected: (value) {
+                            switch (value) {
+                              case _StudentRowAction.profile:
+                                _openStudentProfile(student);
+                                break;
+                              case _StudentRowAction.edit:
+                                _showEditStudentDialog(student);
+                                break;
+                              case _StudentRowAction.delete:
+                                _showDeleteStudentDialog(student);
+                                break;
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: _StudentRowAction.profile,
+                              child: Text(t('Student Profile')),
+                            ),
+                            PopupMenuItem(
+                              value: _StudentRowAction.edit,
+                              child: Text(t('Edit Student')),
+                            ),
+                            PopupMenuItem(
+                              value: _StudentRowAction.delete,
+                              child: Text(t('Delete Student')),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              student.hasRegisteredFace
+                                  ? Icons.check_circle
+                                  : Icons.warning_amber_rounded,
+                              color: student.hasRegisteredFace
+                                  ? AppTheme.successColor
+                                  : AppTheme.warningColor,
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.open_in_new_rounded,
+                                color: AppTheme.textSecondary,
+                              ),
+                              tooltip: t('Student Profile'),
+                              onPressed: () => _openStudentProfile(student),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                color: AppTheme.primaryColor,
+                              ),
+                              tooltip: t('Edit Student'),
+                              onPressed: () => _showEditStudentDialog(student),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: AppTheme.errorColor,
+                              ),
+                              tooltip: t('Delete Student'),
+                              onPressed: () =>
+                                  _showDeleteStudentDialog(student),
+                            ),
+                          ],
                         ),
-                        tooltip: t('Edit Student'),
-                        onPressed: () => _showEditStudentDialog(student),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: AppTheme.errorColor,
-                        ),
-                        tooltip: t('Delete Student'),
-                        onPressed: () => _showDeleteStudentDialog(student),
-                      ),
-                    ],
-                  ),
                 ),
               );
             },

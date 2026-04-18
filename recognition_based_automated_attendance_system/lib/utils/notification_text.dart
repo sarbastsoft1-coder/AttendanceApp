@@ -4,6 +4,45 @@ import 'package:intl/intl.dart';
 import '../localization/localization_extensions.dart';
 import '../models/notification_model.dart';
 
+String _localizedNotificationRole(BuildContext context, String rawRole) {
+  final normalized = rawRole.trim().toLowerCase().replaceAll('_', ' ');
+  switch (normalized) {
+    case 'teacher':
+    case 'user':
+      return context.tr('teacher');
+    case 'super teacher':
+    case 'super user':
+      return context.tr('superTeacher');
+    case 'admin':
+      return context.tr('admin');
+    case 'super admin':
+      return context.tr('superAdmin');
+    default:
+      return rawRole;
+  }
+}
+
+String localizedNotificationTitle(
+  BuildContext context,
+  AppNotification notification,
+) {
+  switch (notification.title) {
+    case 'Teacher Group Invitation':
+    case 'User Group Invitation':
+      return context.tr('userGroupInvitationTitle');
+    case 'Teacher Invitation Accepted':
+    case 'User Invitation Accepted':
+      return context.tr('userInvitationAcceptedTitle');
+    case 'Teacher Invitation Rejected':
+    case 'User Invitation Rejected':
+      return context.tr('userInvitationRejectedTitle');
+    case 'Supervisor Access Updated':
+      return context.tr('supervisorAccessUpdatedTitle');
+    default:
+      return context.t(notification.title);
+  }
+}
+
 String notificationTimestampLabel(BuildContext context, DateTime dt) {
   final localTime = dt.toLocal();
   final now = DateTime.now();
@@ -47,7 +86,9 @@ String localizedNotificationMessage(
   if (lateCheckInMatch != null) {
     return context.t(
       'You have been marked late today at {time}.',
-      params: {'time': notificationTimeOnlyLabel(context, notification.createdAt)},
+      params: {
+        'time': notificationTimeOnlyLabel(context, notification.createdAt),
+      },
     );
   }
 
@@ -84,10 +125,7 @@ String localizedNotificationMessage(
     final status = leaveDecisionMatch.group(2)!.toLowerCase() == 'approved'
         ? context.t('Approved')
         : context.t('Rejected');
-    final params = {
-      'date': leaveDecisionMatch.group(1)!,
-      'status': status,
-    };
+    final params = {'date': leaveDecisionMatch.group(1)!, 'status': status};
     final note = leaveDecisionMatch.group(3);
     if (note != null && note.isNotEmpty) {
       return context.t(
@@ -98,6 +136,58 @@ String localizedNotificationMessage(
     return context.t(
       'Your leave request for {date} was {status}.',
       params: params,
+    );
+  }
+
+  final groupInviteMatch = RegExp(
+    r'^You were invited to join (.+?) as (.+?)\.$',
+  ).firstMatch(message);
+  if (groupInviteMatch != null) {
+    return context.t(
+      'You were invited to join {group} as {role}.',
+      params: {
+        'group': groupInviteMatch.group(1)!,
+        'role': _localizedNotificationRole(context, groupInviteMatch.group(2)!),
+      },
+    );
+  }
+
+  final groupJoinedMatch = RegExp(
+    r'^(.+?) joined (.+?)\.$',
+  ).firstMatch(message);
+  if (groupJoinedMatch != null) {
+    return context.t(
+      '{name} joined {group}.',
+      params: {
+        'name': groupJoinedMatch.group(1)!,
+        'group': groupJoinedMatch.group(2)!,
+      },
+    );
+  }
+
+  final groupRejectedMatch = RegExp(
+    r'^(.+?) rejected the invitation to (.+?)\.$',
+  ).firstMatch(message);
+  if (groupRejectedMatch != null) {
+    return context.t(
+      '{name} rejected the invitation to {group}.',
+      params: {
+        'name': groupRejectedMatch.group(1)!,
+        'group': groupRejectedMatch.group(2)!,
+      },
+    );
+  }
+
+  final roleUpdatedMatch = RegExp(
+    r'^Your supervision role in (.+?) is now (.+?)\.$',
+  ).firstMatch(message);
+  if (roleUpdatedMatch != null) {
+    return context.t(
+      'Your supervision role in {group} is now {role}.',
+      params: {
+        'group': roleUpdatedMatch.group(1)!,
+        'role': _localizedNotificationRole(context, roleUpdatedMatch.group(2)!),
+      },
     );
   }
 

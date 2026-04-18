@@ -31,6 +31,99 @@ function Test-PythonBackendStack {
   }
 }
 
+function Test-BackendHealthy {
+  param(
+    [int]$Port
+  )
+
+  $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health" -Method Get -TimeoutSec 2
+    if ($health.status -ne "healthy") {
+      return $false
+    }
+
+    $openApi = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/openapi.json" -Method Get -TimeoutSec 2
+    return (
+      $openApi.info.title -eq "Recognition Based Automated Attendance System" -and
+      $null -ne $openApi.paths."/api/auth/register" -and
+      $null -ne $openApi.paths."/api/auth/login-json"
+    )
+  }
+  catch {
+    return $false
+  }
+  finally {
+    $ErrorActionPreference = $previousPreference
+  }
+}
+
+function Test-PortListening {
+  param(
+    [int]$Port
+  )
+
+  return [bool](Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1)
+}
+
+function Get-BackendPortSelection {
+  param(
+    [int[]]$Candidates
+  )
+
+  foreach ($port in $Candidates) {
+    if (Test-BackendHealthy -Port $port) {
+      return @{
+        Port = $port
+        StartBackend = $false
+      }
+    }
+
+    if (-not (Test-PortListening -Port $port)) {
+      return @{
+        Port = $port
+        StartBackend = $true
+      }
+    }
+  }
+
+  throw "No usable backend port was found in: $($Candidates -join ', ')"
+}
+
+function Sync-DesktopAppBaseUrlPreference {
+  param(
+    [string]$BaseUrl
+  )
+
+  $prefsDir = Join-Path $env:APPDATA "com.example\recognition_based_automated_attendance_system"
+  $prefsPath = Join-Path $prefsDir "shared_preferences.json"
+
+  if (-not (Test-Path $prefsDir)) {
+    New-Item -ItemType Directory -Path $prefsDir -Force | Out-Null
+  }
+
+  $prefsObject = $null
+  if (Test-Path $prefsPath) {
+    try {
+      $raw = Get-Content -Path $prefsPath -Raw
+      if (-not [string]::IsNullOrWhiteSpace($raw)) {
+        $prefsObject = $raw | ConvertFrom-Json
+      }
+    }
+    catch {
+      Write-Warning "Could not parse shared preferences. Recreating $prefsPath"
+    }
+  }
+
+  if ($null -eq $prefsObject) {
+    $prefsObject = [pscustomobject]@{}
+  }
+
+  $prefsObject | Add-Member -NotePropertyName 'flutter.api_base_url' -NotePropertyValue $BaseUrl -Force
+  $prefsObject | ConvertTo-Json -Compress | Set-Content -Path $prefsPath -Encoding UTF8
+}
+
 if (-not (Test-Path $backendDir)) {
   throw "Backend folder not found at: $backendDir"
 }
@@ -66,27 +159,36 @@ if (-not $pythonPath) {
 
 $backendLog = Join-Path $backendDir "backend_windows.log"
 $backendErr = Join-Path $backendDir "backend_windows.err.log"
+$backendPortCandidates = @(8000, 8001, 8010, 8011)
+$backendSelection = Get-BackendPortSelection -Candidates $backendPortCandidates
+$backendPort = [int]$backendSelection.Port
+$startBackend = [bool]$backendSelection.StartBackend
 
-Write-Host "Starting backend API..."
-$backendProcess = Start-Process `
-  -FilePath $pythonPath `
-  -ArgumentList @("-X", "utf8", "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000") `
-  -WorkingDirectory $backendDir `
-  -RedirectStandardOutput $backendLog `
-  -RedirectStandardError $backendErr `
-  -PassThru
+if ($startBackend) {
+  Write-Host "Starting backend API on port $backendPort..."
+  $backendProcess = Start-Process `
+    -FilePath $pythonPath `
+    -ArgumentList @("-X", "utf8", "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "$backendPort") `
+    -WorkingDirectory $backendDir `
+    -RedirectStandardOutput $backendLog `
+    -RedirectStandardError $backendErr `
+    -PassThru
+}
+else {
+  Write-Host "Using existing backend API on port $backendPort..."
+}
 
 try {
   $backendReady = $false
   for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 1
 
-    if ($backendProcess.HasExited) {
+    if ($startBackend -and $backendProcess.HasExited) {
       throw "Backend exited early. Check logs: $backendLog and $backendErr"
     }
 
     try {
-      $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -Method Get -TimeoutSec 2
+      $health = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/health" -Method Get -TimeoutSec 2
       if ($health.status -eq "healthy") {
         $backendReady = $true
         break
@@ -98,15 +200,19 @@ try {
   }
 
   if (-not $backendReady) {
-    throw "Backend did not become healthy within 30 seconds. Check: $backendErr"
+    throw "Backend did not become healthy within 30 seconds on port $backendPort. Check: $backendErr"
   }
+
+  $backendBaseUrl = "http://127.0.0.1:$backendPort"
+  Sync-DesktopAppBaseUrlPreference -BaseUrl $backendBaseUrl
+  Write-Host "Using backend API URL $backendBaseUrl"
 
   Write-Host "Launching desktop app..."
   $appProcess = Start-Process -FilePath $exePath -PassThru
   Wait-Process -Id $appProcess.Id
 }
 finally {
-  if ($backendProcess -and -not $backendProcess.HasExited) {
+  if ($startBackend -and (Get-Variable -Name "backendProcess" -ErrorAction SilentlyContinue) -and -not $backendProcess.HasExited) {
     Write-Host "Stopping backend..."
     Stop-Process -Id $backendProcess.Id -Force
   }

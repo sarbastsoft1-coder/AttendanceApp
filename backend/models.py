@@ -37,13 +37,22 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
     phone: Optional[str] = None
     department: Optional[str] = None
-    role: Optional[str] = "teacher"
+
+
+class ManagedUserCreate(UserCreate):
+    """Admin-created user request"""
+    role: str = Field(
+        default="teacher",
+        pattern="^(teacher|super_teacher|admin|super_admin)$",
+    )
+    admin_access_key: Optional[str] = Field(default=None, min_length=4)
 
 
 class UserLogin(BaseModel):
     """User login request"""
     email: EmailStr
     password: str
+    admin_access_key: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -61,6 +70,8 @@ class UserResponse(UserBase):
     phone: Optional[str] = None
     department: Optional[str] = None
     role: str
+    face_image_path: Optional[str] = None
+    face_image_url: Optional[str] = None
     has_registered_face: bool
     is_active: bool
     is_verified: bool
@@ -297,12 +308,106 @@ class ClassResponse(BaseModel):
         from_attributes = True
 
 
+class TeacherGroupCreate(BaseModel):
+    """Create a school teacher group."""
+    name: str = Field(..., min_length=2, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=1000)
+
+
+class TeacherGroupInviteCreate(BaseModel):
+    """Invite one or more teachers to a group by email."""
+    emails: List[EmailStr]
+    target_role: str = Field(default="teacher", pattern="^(teacher|super_teacher)$")
+    note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class TeacherGroupInviteRespond(BaseModel):
+    """Teacher accepts or rejects a group invitation."""
+    status: str = Field(..., pattern="^(accepted|rejected)$")
+
+
+class TeacherGroupMemberUpdate(BaseModel):
+    """Update the role of a teacher inside the supervision flow."""
+    role: str = Field(..., pattern="^(teacher|super_teacher)$")
+
+
+class GroupSharedClassCreate(BaseModel):
+    """Share a class with all teachers in a group."""
+    class_id: int
+    group_id: int
+
+
+class TeacherGroupMemberResponse(BaseModel):
+    """Member inside a teacher group."""
+    id: int
+    teacher_id: int
+    teacher_name: str
+    teacher_email: str
+    teacher_role: str
+    joined_at: datetime
+
+
+class TeacherGroupInviteResponse(BaseModel):
+    """Teacher group invitation."""
+    id: int
+    group_id: int
+    email: str
+    invited_by_id: int
+    invited_by_name: Optional[str] = None
+    teacher_id: Optional[int] = None
+    teacher_name: Optional[str] = None
+    target_role: str
+    status: str
+    note: Optional[str] = None
+    created_at: datetime
+    responded_at: Optional[datetime] = None
+
+
+class GroupSharedClassResponse(BaseModel):
+    """Class shared with a teacher group."""
+    id: int
+    group_id: int
+    class_id: int
+    class_name: str
+    shared_by_id: int
+    shared_by_name: Optional[str] = None
+    created_at: datetime
+
+
+class TeacherGroupResponse(BaseModel):
+    """Teacher group with current members, invitations, and shared classes."""
+    id: int
+    name: str
+    description: Optional[str] = None
+    created_by_id: int
+    created_by_name: Optional[str] = None
+    can_manage: bool = False
+    created_at: datetime
+    updated_at: datetime
+    members: List[TeacherGroupMemberResponse] = []
+    invitations: List[TeacherGroupInviteResponse] = []
+    shared_classes: List[GroupSharedClassResponse] = []
+
+
+class SupervisionOverviewResponse(BaseModel):
+    """Supervisor hub payload."""
+    can_create_groups: bool = False
+    can_manage_groups: bool
+    can_share_classes: bool
+    pending_leave_count: int = 0
+    groups: List[TeacherGroupResponse] = []
+    invitations: List[TeacherGroupInviteResponse] = []
+    shareable_classes: List[ClassResponse] = []
+
+
 class StudentResponse(BaseModel):
     """Student response"""
     id: int
     name: str
     class_id: int
     linked_user_id: Optional[int] = None
+    face_image_path: Optional[str] = None
+    face_image_url: Optional[str] = None
     has_registered_face: bool
     created_at: datetime
 

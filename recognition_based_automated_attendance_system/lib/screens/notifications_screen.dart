@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
 import '../models/notification_model.dart';
+import '../models/supervision_model.dart';
 import '../providers/notification_provider.dart';
+import '../providers/supervision_provider.dart';
 import '../utils/notification_text.dart';
 
 /// Notifications Screen — displays all in-app notifications with read/unread state
@@ -16,6 +18,15 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _showUnreadOnly = false;
+  final Set<int> _busyInvitationIds = <int>{};
+
+  bool _canRespondToGroupInvitation(AppNotification notification) {
+    if (notification.relatedType != 'teacher_group_invite') {
+      return false;
+    }
+    return notification.title == 'Teacher Group Invitation' ||
+        notification.title == 'User Group Invitation';
+  }
 
   @override
   void initState() {
@@ -29,6 +40,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await context.read<NotificationProvider>().fetchNotifications();
   }
 
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppTheme.errorColor),
+    );
+  }
+
   void _markAllRead() async {
     final provider = context.read<NotificationProvider>();
     await provider.markAllAsRead();
@@ -39,6 +62,141 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           backgroundColor: AppTheme.successColor,
         ),
       );
+    }
+  }
+
+  Future<TeacherGroupInvite?> _resolveRelatedInvitation(
+    AppNotification notification, {
+    bool refreshOverview = false,
+  }) async {
+    if (notification.relatedType != 'teacher_group_invite' ||
+        notification.relatedId == null) {
+      return null;
+    }
+
+    final supervision = context.read<SupervisionProvider>();
+    if (refreshOverview || supervision.overview == null) {
+      await supervision.fetchOverview();
+    }
+
+    final overview = supervision.overview;
+    if (overview == null) {
+      return null;
+    }
+
+    final inviteId = notification.relatedId!;
+
+    for (final invite in overview.pendingInvitations) {
+      if (invite.id == inviteId) {
+        return invite;
+      }
+    }
+
+    for (final group in overview.groups) {
+      for (final invite in group.invitations) {
+        if (invite.id == inviteId) {
+          return invite;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _openRelatedGroup(
+    AppNotification notification, {
+    int? preferredGroupId,
+  }) async {
+    final invite = preferredGroupId == null
+        ? await _resolveRelatedInvitation(notification, refreshOverview: true)
+        : null;
+    if (!mounted) {
+      return;
+    }
+
+    final groupId = preferredGroupId ?? invite?.groupId;
+    await Navigator.pushNamed(
+      context,
+      '/supervision',
+      arguments: groupId == null ? null : {'groupId': groupId},
+    );
+
+    if (mounted) {
+      await _refresh();
+    }
+  }
+
+  Future<void> _respondToGroupInvitation(
+    AppNotification notification,
+    String status,
+  ) async {
+    if (_busyInvitationIds.contains(notification.id)) {
+      return;
+    }
+
+    setState(() => _busyInvitationIds.add(notification.id));
+
+    final language = context.languageRead;
+    final notificationProvider = context.read<NotificationProvider>();
+    final supervision = context.read<SupervisionProvider>();
+
+    try {
+      if (!notification.isRead) {
+        await notificationProvider.markOneAsRead(notification.id);
+      }
+
+      final invite = await _resolveRelatedInvitation(
+        notification,
+        refreshOverview: true,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      if (invite == null) {
+        if (status == 'accepted') {
+          await _openRelatedGroup(notification);
+        } else {
+          _showError(language.tr('operationFailed'));
+        }
+        return;
+      }
+
+      if (!invite.isPending) {
+        if (status == 'accepted') {
+          await _openRelatedGroup(
+            notification,
+            preferredGroupId: invite.groupId,
+          );
+        } else {
+          _showMessage(language.tr('invitationRejected'));
+        }
+        return;
+      }
+
+      final success = await supervision.respondToInvitation(
+        inviteId: invite.id,
+        status: status,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      if (!success) {
+        _showError(supervision.error ?? language.tr('operationFailed'));
+        return;
+      }
+
+      if (status == 'accepted') {
+        await _openRelatedGroup(notification, preferredGroupId: invite.groupId);
+      } else {
+        _showMessage(language.tr('invitationRejected'));
+        await _refresh();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busyInvitationIds.remove(notification.id));
+      }
     }
   }
 
@@ -139,10 +297,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               itemCount: notifications.length,
               itemBuilder: (context, index) {
                 final notification = notifications[index];
+                final canRespond = _canRespondToGroupInvitation(notification);
                 return _NotificationCard(
                   notification: notification,
                   onTap: () => _onNotificationTap(notification),
                   onDismiss: () => _onDismiss(notification),
+                  isBusy: _busyInvitationIds.contains(notification.id),
+                  onAcceptInvitation: canRespond
+                      ? () =>
+                            _respondToGroupInvitation(notification, 'accepted')
+                      : null,
+                  onRejectInvitation: canRespond
+                      ? () =>
+                            _respondToGroupInvitation(notification, 'rejected')
+                      : null,
+                  onOpenGroup:
+                      notification.relatedType == 'teacher_group_invite'
+                      ? () => _openRelatedGroup(notification)
+                      : null,
                 );
               },
             ),
@@ -165,6 +337,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // Navigate based on related type
     if (notification.relatedType == 'leave_request') {
       Navigator.pushNamed(context, '/leave-requests');
+      return;
+    }
+
+    if (notification.relatedType == 'teacher_group_invite') {
+      await _openRelatedGroup(notification);
     }
   }
 
@@ -243,11 +420,19 @@ class _NotificationCard extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onTap;
   final VoidCallback onDismiss;
+  final bool isBusy;
+  final VoidCallback? onAcceptInvitation;
+  final VoidCallback? onRejectInvitation;
+  final VoidCallback? onOpenGroup;
 
   const _NotificationCard({
     required this.notification,
     required this.onTap,
     required this.onDismiss,
+    this.isBusy = false,
+    this.onAcceptInvitation,
+    this.onRejectInvitation,
+    this.onOpenGroup,
   });
 
   IconData _iconFor(String type) {
@@ -296,6 +481,10 @@ class _NotificationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final typeColor = _colorFor(notification.type);
     final isUnread = !notification.isRead;
+    final hasGroupInviteActions =
+        onAcceptInvitation != null ||
+        onRejectInvitation != null ||
+        onOpenGroup != null;
 
     return Dismissible(
       key: Key('notif_${notification.id}'),
@@ -356,7 +545,7 @@ class _NotificationCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            context.t(notification.title),
+                            localizedNotificationTitle(context, notification),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: isUnread
@@ -426,6 +615,44 @@ class _NotificationCard extends StatelessWidget {
                           ),
                       ],
                     ),
+                    if (hasGroupInviteActions) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (onAcceptInvitation != null)
+                            FilledButton(
+                              onPressed: isBusy ? null : onAcceptInvitation,
+                              child: Text(context.tr('accept')),
+                            ),
+                          if (onRejectInvitation != null)
+                            OutlinedButton(
+                              onPressed: isBusy ? null : onRejectInvitation,
+                              child: Text(context.tr('reject')),
+                            ),
+                          if (onOpenGroup != null)
+                            TextButton(
+                              onPressed: isBusy ? null : onOpenGroup,
+                              child: Text(context.tr('openGroup')),
+                            ),
+                          if (isBusy)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 10,
+                              ),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

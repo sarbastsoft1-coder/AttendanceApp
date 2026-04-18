@@ -102,8 +102,7 @@ class _BatchStudentRegistrationScreenState
 
       await _cameraController!.initialize();
 
-      if (PlatformUtils.isNativeDesktop &&
-          frontCamera.sensorOrientation == 0) {
+      if (PlatformUtils.isNativeDesktop && frontCamera.sensorOrientation == 0) {
         _previewQuarterTurns = 2;
       }
 
@@ -590,35 +589,71 @@ class _BatchStudentRegistrationScreenState
           ),
           child: Column(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    t('Class: {name}', params: {'name': _className}),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  Text(
-                    widget.initialClassId != null
-                        ? t(
-                            'Students added: {count}',
-                            params: {'count': '${_registeredStudents.length}'},
-                          )
-                        : t(
-                            'Student {current} of {total}',
-                            params: {
-                              'current': '${_currentStudentIndex + 1}',
-                              'total': '$_totalStudents',
-                            },
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 520;
+                  final progressText = widget.initialClassId != null
+                      ? t(
+                          'Students added: {count}',
+                          params: {'count': '${_registeredStudents.length}'},
+                        )
+                      : t(
+                          'Student {current} of {total}',
+                          params: {
+                            'current': '${_currentStudentIndex + 1}',
+                            'total': '$_totalStudents',
+                          },
+                        );
+
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t('Class: {name}', params: {'name': _className}),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
                           ),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.primaryColor,
-                    ),
-                  ),
-                ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          progressText,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          t('Class: {name}', params: {'name': _className}),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Flexible(
+                        child: Text(
+                          progressText,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 12),
               if (widget.initialClassId == null)
@@ -637,238 +672,283 @@ class _BatchStudentRegistrationScreenState
 
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Student Info Form - Name Only
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: TextField(
-                      controller: _currentStudentNameController,
-                      decoration: InputDecoration(
-                        labelText: t('Student Name'),
-                        hintText: t('Enter full name'),
-                        prefixIcon: Icon(Icons.person),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Photo Capture Tips Card
-                Card(
-                  color: Colors.blue.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.lightbulb, color: Colors.blue.shade700),
-                            const SizedBox(width: 8),
-                            Text(
-                              t('Photo Capture Tips'),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Colors.blue.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        _buildTip('👤', 'Face the camera directly'),
-                        _buildTip('💡', 'Ensure good lighting (avoid shadows)'),
-                        _buildTip('📏', 'Keep face centered in the frame'),
-                        _buildTip('👀', 'Look straight at the camera'),
-                        _buildTip(
-                          '🚫',
-                          'Remove glasses, hats, or face coverings',
-                        ),
-                        _buildTip(
-                          '📸',
-                          'Capture {count} photos from slightly different angles',
-                          params: {'count': '$_requiredImages'},
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Camera Preview
-                if (_isCameraReady && _cameraController != null)
-                  Container(
-                    height: 300,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppTheme.primaryColor,
-                        width: 3,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(13),
-                      child: _buildCameraPreview(),
-                    ),
-                  )
-                else
-                  Container(
-                    height: 300,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      color: Colors.grey.shade200,
-                    ),
-                    child: Center(
+            padding: EdgeInsets.all(
+              MediaQuery.sizeOf(context).width < 420 ? 12 : 16,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 860),
+                child: Column(
+                  children: [
+                    // Student Info Form - Name Only
+                    Card(
                       child: Padding(
                         padding: const EdgeInsets.all(16),
-                        child: _cameraError == null
-                            ? const CircularProgressIndicator()
-                            : Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    _cameraError!,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  OutlinedButton.icon(
-                                    onPressed: _initCamera,
-                                    icon: const Icon(Icons.refresh),
-                                    label: Text(t('Retry')),
-                                  ),
-                                ],
-                              ),
+                        child: TextField(
+                          controller: _currentStudentNameController,
+                          decoration: InputDecoration(
+                            labelText: t('Student Name'),
+                            hintText: t('Enter full name'),
+                            prefixIcon: Icon(Icons.person),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
-                // Capture Button
-                CustomButton(
-                  text: _isCapturing
-                      ? 'Capturing...'
-                      : t(
-                          'Capture Image ({current}/{total})',
-                          params: {
-                            'current': '${_capturedImages.length}',
-                            'total': '$_requiredImages',
-                          },
-                        ),
-                  isLoading: _isCapturing,
-                  onPressed:
-                      _isCameraReady && _capturedImages.length < _requiredImages
-                      ? _captureImage
-                      : null,
-                  icon: Icons.camera_alt,
-                  backgroundColor: _capturedImages.length < _requiredImages
-                      ? AppTheme.primaryColor
-                      : Colors.grey,
-                ),
-                const SizedBox(height: 24),
-
-                // Captured Images Preview
-                if (_capturedImages.isNotEmpty) ...[
-                  Text(
-                    t('Captured Images'),
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 100,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _capturedImages.length,
-                      itemBuilder: (context, index) {
-                        return Stack(
+                    // Photo Capture Tips Card
+                    Card(
+                      color: Colors.blue.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 100,
-                              height: 100,
-                              margin: const EdgeInsets.only(right: 12),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppTheme.primaryColor,
-                                  width: 2,
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.lightbulb,
+                                  color: Colors.blue.shade700,
                                 ),
-                                image: DecorationImage(
-                                  image: MemoryImage(_capturedImages[index].bytes),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: 4,
-                              right: 16,
-                              child: GestureDetector(
-                                onTap: () => _deleteImage(index),
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.close,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 4,
-                              left: 4,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryColor,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  '${index + 1}/$_requiredImages',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
+                                const SizedBox(width: 8),
+                                Text(
+                                  t('Photo Capture Tips'),
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Colors.blue.shade700,
                                   ),
                                 ),
-                              ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _buildTip('👤', 'Face the camera directly'),
+                            _buildTip(
+                              '💡',
+                              'Ensure good lighting (avoid shadows)',
+                            ),
+                            _buildTip('📏', 'Keep face centered in the frame'),
+                            _buildTip('👀', 'Look straight at the camera'),
+                            _buildTip(
+                              '🚫',
+                              'Remove glasses, hats, or face coverings',
+                            ),
+                            _buildTip(
+                              '📸',
+                              'Capture {count} photos from slightly different angles',
+                              params: {'count': '$_requiredImages'},
                             ),
                           ],
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 20),
 
-                // Submit Button
-                CustomButton(
-                  text: _currentStudentIndex < _totalStudents - 1
-                      ? 'Submit & Next Student'
-                      : 'Submit & Finish',
-                  isLoading: _isSubmitting,
-                  onPressed:
-                      _capturedImages.length == _requiredImages &&
-                          !_isSubmitting
-                      ? _submitStudent
-                      : null,
-                  icon: _currentStudentIndex < _totalStudents - 1
-                      ? Icons.arrow_forward
-                      : Icons.check_circle,
-                  backgroundColor: _capturedImages.length == _requiredImages
-                      ? AppTheme.successColor
-                      : Colors.grey,
+                    // Camera Preview
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final previewHeight = (constraints.maxWidth * 0.76)
+                                .clamp(260.0, 420.0)
+                                .toDouble();
+
+                            return Container(
+                              height: previewHeight,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppTheme.primaryColor,
+                                  width: 3,
+                                ),
+                                color: Colors.grey.shade200,
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(13),
+                                child:
+                                    _isCameraReady && _cameraController != null
+                                    ? _buildCameraPreview()
+                                    : Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(16),
+                                          child: _cameraError == null
+                                              ? const CircularProgressIndicator()
+                                              : Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      _cameraError!,
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                    ),
+                                                    const SizedBox(height: 12),
+                                                    OutlinedButton.icon(
+                                                      onPressed: _initCamera,
+                                                      icon: const Icon(
+                                                        Icons.refresh,
+                                                      ),
+                                                      label: Text(t('Retry')),
+                                                    ),
+                                                  ],
+                                                ),
+                                        ),
+                                      ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Capture Button
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: CustomButton(
+                          text: _isCapturing
+                              ? 'Capturing...'
+                              : t(
+                                  'Capture Image ({current}/{total})',
+                                  params: {
+                                    'current': '${_capturedImages.length}',
+                                    'total': '$_requiredImages',
+                                  },
+                                ),
+                          isLoading: _isCapturing,
+                          onPressed:
+                              _isCameraReady &&
+                                  _capturedImages.length < _requiredImages
+                              ? _captureImage
+                              : null,
+                          icon: Icons.camera_alt,
+                          backgroundColor:
+                              _capturedImages.length < _requiredImages
+                              ? AppTheme.primaryColor
+                              : Colors.grey,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Captured Images Preview
+                    if (_capturedImages.isNotEmpty) ...[
+                      Text(
+                        t('Captured Images'),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 100,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _capturedImages.length,
+                          itemBuilder: (context, index) {
+                            return Stack(
+                              children: [
+                                Container(
+                                  width: 100,
+                                  height: 100,
+                                  margin: const EdgeInsets.only(right: 12),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: AppTheme.primaryColor,
+                                      width: 2,
+                                    ),
+                                    image: DecorationImage(
+                                      image: MemoryImage(
+                                        _capturedImages[index].bytes,
+                                      ),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 4,
+                                  right: 16,
+                                  child: GestureDetector(
+                                    onTap: () => _deleteImage(index),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 4,
+                                  left: 4,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryColor,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '${index + 1}/$_requiredImages',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // Submit Button
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: CustomButton(
+                          text: _currentStudentIndex < _totalStudents - 1
+                              ? 'Submit & Next Student'
+                              : 'Submit & Finish',
+                          isLoading: _isSubmitting,
+                          onPressed:
+                              _capturedImages.length == _requiredImages &&
+                                  !_isSubmitting
+                              ? _submitStudent
+                              : null,
+                          icon: _currentStudentIndex < _totalStudents - 1
+                              ? Icons.arrow_forward
+                              : Icons.check_circle,
+                          backgroundColor:
+                              _capturedImages.length == _requiredImages
+                              ? AppTheme.successColor
+                              : Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

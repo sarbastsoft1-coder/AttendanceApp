@@ -70,6 +70,8 @@ class Student {
   final String name;
   final int classId;
   final int? linkedUserId;
+  final String? faceImagePath;
+  final String? faceImageUrl;
   final bool hasRegisteredFace;
   final DateTime createdAt;
 
@@ -78,6 +80,8 @@ class Student {
     required this.name,
     required this.classId,
     this.linkedUserId,
+    this.faceImagePath,
+    this.faceImageUrl,
     required this.hasRegisteredFace,
     required this.createdAt,
   });
@@ -88,6 +92,8 @@ class Student {
       name: json['name'] ?? '',
       classId: json['class_id'] ?? 0,
       linkedUserId: json['linked_user_id'],
+      faceImagePath: json['face_image_path'],
+      faceImageUrl: json['face_image_url'],
       hasRegisteredFace: json['has_registered_face'] ?? false,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])

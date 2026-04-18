@@ -43,7 +43,7 @@ class User(Base):
     phone = Column(String(20), nullable=True)
     department = Column(String(100), nullable=True)
 
-    # Role: admin, teacher, student, managed_student
+    # Role: admin, super_admin, teacher, super_teacher, student, managed_student
     role = Column(String(50), default="teacher")
 
     # Face recognition data
@@ -55,6 +55,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     verification_token = Column(String(64), nullable=True)
+    admin_access_key_hash = Column(String(255), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -123,6 +124,83 @@ class Class(Base):
     teacher = relationship("User")
     students = relationship("Student", back_populates="class_ref")
     qr_sessions = relationship("QRSession", back_populates="class_ref")
+
+
+class TeacherGroup(Base):
+    """School-level teacher group owned by the creating teacher or admin."""
+    __tablename__ = "teacher_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by = relationship("User")
+    memberships = relationship(
+        "TeacherGroupMember",
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+    invitations = relationship(
+        "TeacherGroupInvite",
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+    shared_classes = relationship(
+        "GroupSharedClass",
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+
+
+class TeacherGroupMember(Base):
+    """Teacher membership inside a teacher group."""
+    __tablename__ = "teacher_group_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey("teacher_groups.id"), nullable=False, index=True)
+    teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    joined_at = Column(DateTime, default=datetime.utcnow)
+
+    group = relationship("TeacherGroup", back_populates="memberships")
+    teacher = relationship("User")
+
+
+class TeacherGroupInvite(Base):
+    """Invitation sent to a teacher email to join a teacher group."""
+    __tablename__ = "teacher_group_invites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey("teacher_groups.id"), nullable=False, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    invited_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    target_role = Column(String(50), default="teacher")
+    status = Column(String(20), default="pending")
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    responded_at = Column(DateTime, nullable=True)
+
+    group = relationship("TeacherGroup", back_populates="invitations")
+    invited_by = relationship("User", foreign_keys=[invited_by_id])
+    teacher = relationship("User", foreign_keys=[teacher_id])
+
+
+class GroupSharedClass(Base):
+    """Class shared to every teacher who belongs to a group."""
+    __tablename__ = "group_shared_classes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey("teacher_groups.id"), nullable=False, index=True)
+    class_id = Column(Integer, ForeignKey("classes.id"), nullable=False, index=True)
+    shared_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    group = relationship("TeacherGroup", back_populates="shared_classes")
+    class_ref = relationship("Class")
+    shared_by = relationship("User", foreign_keys=[shared_by_id])
 
 
 class Student(Base):
@@ -315,7 +393,7 @@ def init_db():
             ("max_face_images",       "10",   "Maximum face images allowed for registration"),
             ("attendance_alert_pct",  "75",   "Attendance percentage below which an alert is triggered"),
             ("qr_session_minutes",    "15",   "Minutes a QR attendance session stays valid"),
-            ("allow_manual_entry",    "true", "Allow teachers to manually mark attendance"),
+            ("allow_manual_entry",    "true", "Allow users to manually mark attendance"),
             ("allow_qr_attendance",   "true", "Allow QR code attendance"),
             ("allow_face_attendance", "true", "Allow face recognition attendance"),
             ("app_name",              "Face Attendance System", "Application display name"),
@@ -351,6 +429,9 @@ def _ensure_schema_updates():
             "start_time": "VARCHAR(20)",
             "end_time": "VARCHAR(20)",
             "meeting_days": "VARCHAR(100)",
+        },
+        "users": {
+            "admin_access_key_hash": "VARCHAR(255)",
         },
     }
 

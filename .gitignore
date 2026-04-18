@@ -31,3 +31,7 @@ Thumbs.db
 # Backend runtime data
 backend/face_images/
 backend/attendance.db
+
+# Logs and PIDs
+*.log
+*.pid

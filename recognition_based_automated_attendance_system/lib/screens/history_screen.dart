@@ -29,7 +29,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadHistory();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadHistory();
+      }
+    });
   }
 
   void _loadHistory() {
@@ -97,12 +101,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildContent() {
-    final isMobile = ResponsiveLayout.isMobile(context);
-
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 20 : 28),
+      padding: ResponsiveLayout.pagePadding(context),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1200),
+        constraints: BoxConstraints(
+          maxWidth: ResponsiveLayout.contentMaxWidth(context),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

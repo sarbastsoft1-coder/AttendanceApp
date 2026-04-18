@@ -32,11 +32,124 @@ import 'screens/admin/admin_reports_screen.dart';
 import 'screens/admin/admin_attendance_screen.dart';
 import 'screens/room_scanner_screen.dart';
 import 'screens/batch_student_registration_screen.dart';
+import 'screens/check_out_screen.dart';
+import 'screens/export_center_screen.dart';
+import 'screens/exam_proctoring_screen.dart';
+import 'screens/guardian_portal_screen.dart';
+import 'screens/roll_call_screen.dart';
 import 'providers/language_provider.dart';
 import 'providers/student_management_provider.dart';
+import 'providers/supervision_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/admin/class_management_screen.dart';
+import 'screens/admin/analytics_screen.dart';
+import 'screens/supervision_dashboard_screen.dart';
 import 'widgets/live_notification_listener.dart';
+
+typedef AppRouteWidgetFactory = Widget Function(RouteSettings settings);
+
+int? _routeIntArgument(RouteSettings settings, String key) {
+  final args = settings.arguments;
+  if (args is int) {
+    return args;
+  }
+  if (args is Map) {
+    final value = args[key];
+    if (value is int) {
+      return value;
+    }
+  }
+  return null;
+}
+
+@visibleForTesting
+final Map<String, AppRouteWidgetFactory> appRouteBuilders =
+    <String, AppRouteWidgetFactory>{
+      '/': (_) => const SplashScreen(),
+      '/login': (_) => const LoginScreen(),
+      '/register': (_) => const RegisterScreen(),
+      '/face-capture': (_) => const FaceCaptureScreen(),
+      '/home': (_) => const HomeScreen(),
+      '/attendance': (_) => const AttendanceScreen(),
+      '/history': (_) => const HistoryScreen(),
+      '/profile': (_) => const ProfileScreen(),
+      '/edit-profile': (_) => const EditProfileScreen(),
+      '/change-password': (_) => const ChangePasswordScreen(),
+      '/leave-requests': (_) => const LeaveRequestScreen(),
+      '/notifications': (_) => const NotificationsScreen(),
+      '/admin': (_) => const AdminDashboard(),
+      '/admin/users': (_) => const AdminUsersScreen(),
+      '/admin/reports': (_) => const AdminReportsScreen(),
+      '/admin/attendance': (_) => const AdminAttendanceScreen(),
+      '/room-scanner': (_) => const RoomScannerScreen(),
+      '/batch-registration': (_) => const BatchStudentRegistrationScreen(),
+      '/check-out': (_) => const CheckOutScreen(),
+      '/export-center': (_) => const ExportCenterScreen(),
+      '/qr-attendance': (_) => const SplashScreen(),
+      '/qr-scan': (_) => const SplashScreen(),
+      '/exam-proctoring': (_) => const ExamProctoringScreen(),
+      '/roll-call': (_) => const RollCallScreen(),
+      '/guardian-portal': (_) => const GuardianPortalScreen(),
+      '/admin/analytics': (_) => const AnalyticsScreen(),
+      '/admin/classes': (_) => const ClassManagementScreen(),
+      '/supervision': (settings) => SupervisionDashboardScreen(
+        initialGroupId: _routeIntArgument(settings, 'groupId'),
+      ),
+    };
+
+@visibleForTesting
+Widget buildAppChild(RouteSettings settings) {
+  final builder = appRouteBuilders[settings.name];
+  return (builder ?? (_) => const SplashScreen())(settings);
+}
+
+@visibleForTesting
+Route<dynamic> buildAppRoute(
+  RouteSettings settings, {
+  bool useTransition = true,
+}) {
+  final child = buildAppChild(settings);
+  if (!useTransition) {
+    return MaterialPageRoute(settings: settings, builder: (_) => child);
+  }
+  return AppPageRoute<dynamic>(settings: settings, child: child);
+}
+
+@visibleForTesting
+Route<dynamic> buildUnknownRoute(RouteSettings settings) {
+  return AppPageRoute<dynamic>(settings: settings, child: const SplashScreen());
+}
+
+class AppPageRoute<T> extends PageRouteBuilder<T> {
+  final Widget child;
+
+  AppPageRoute({required this.child, super.settings})
+    : super(
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) => child,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.025, 0),
+                end: Offset.zero,
+              ).animate(fade),
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.988, end: 1).animate(fade),
+                child: child,
+              ),
+            ),
+          );
+        },
+      );
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -94,6 +207,27 @@ void main() async {
   );
 }
 
+String _resolveInitialRoute() {
+  if (!kIsWeb) {
+    return '/';
+  }
+
+  String? candidate;
+  if (Uri.base.fragment.isNotEmpty) {
+    candidate = Uri.base.fragment;
+  } else if (Uri.base.path.isNotEmpty && Uri.base.path != '/') {
+    candidate =
+        '${Uri.base.path}${Uri.base.hasQuery ? '?${Uri.base.query}' : ''}';
+  }
+
+  if (candidate == null || candidate.isEmpty) {
+    return '/';
+  }
+
+  final normalized = candidate.startsWith('/') ? candidate : '/$candidate';
+  return Uri.parse(normalized).path;
+}
+
 class MyApp extends StatelessWidget {
   final ThemeProvider themeProvider;
   final LanguageProvider languageProvider;
@@ -113,6 +247,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
         ChangeNotifierProvider(create: (_) => StudentManagementProvider()),
+        ChangeNotifierProvider(create: (_) => SupervisionProvider()),
         ChangeNotifierProvider(create: (_) => LeaveRequestProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
@@ -136,29 +271,17 @@ class MyApp extends StatelessWidget {
                 ),
               );
             },
-            initialRoute: '/',
-            routes: {
-              '/': (context) => const SplashScreen(),
-              '/login': (context) => const LoginScreen(),
-              '/register': (context) => const RegisterScreen(),
-              '/face-capture': (context) => const FaceCaptureScreen(),
-              '/home': (context) => const HomeScreen(),
-              '/attendance': (context) => const AttendanceScreen(),
-              '/history': (context) => const HistoryScreen(),
-              '/profile': (context) => const ProfileScreen(),
-              '/edit-profile': (context) => const EditProfileScreen(),
-              '/change-password': (context) => const ChangePasswordScreen(),
-              '/leave-requests': (context) => const LeaveRequestScreen(),
-              '/notifications': (context) => const NotificationsScreen(),
-              '/admin': (context) => const AdminDashboard(),
-              '/admin/users': (context) => const AdminUsersScreen(),
-              '/admin/reports': (context) => const AdminReportsScreen(),
-              '/admin/attendance': (context) => const AdminAttendanceScreen(),
-              '/room-scanner': (context) => const RoomScannerScreen(),
-              '/batch-registration': (context) =>
-                  const BatchStudentRegistrationScreen(),
-              '/admin/classes': (context) => const ClassManagementScreen(),
+            initialRoute: _resolveInitialRoute(),
+            onGenerateInitialRoutes: (initialRoute) {
+              return [
+                buildAppRoute(
+                  RouteSettings(name: initialRoute),
+                  useTransition: false,
+                ),
+              ];
             },
+            onGenerateRoute: buildAppRoute,
+            onUnknownRoute: buildUnknownRoute,
           );
         },
       ),

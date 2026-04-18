@@ -25,9 +25,82 @@ class SidebarNavigation extends StatefulWidget {
 class _SidebarNavigationState extends State<SidebarNavigation> {
   static const bool _isExpanded = true;
 
+  final GlobalKey _selectorScopeKey = GlobalKey();
+  final Map<int, GlobalKey> _itemKeys = <int, GlobalKey>{};
+
+  double? _selectorTop;
+  double? _selectorHeight;
+  bool _selectorSyncQueued = false;
+
+  GlobalKey _itemKeyFor(int index) {
+    return _itemKeys.putIfAbsent(index, GlobalKey.new);
+  }
+
+  @override
+  void didUpdateWidget(covariant SidebarNavigation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      _queueSelectorSync();
+    }
+  }
+
+  void _queueSelectorSync() {
+    if (_selectorSyncQueued) {
+      return;
+    }
+
+    _selectorSyncQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _selectorSyncQueued = false;
+      _syncSelector();
+    });
+  }
+
+  void _syncSelector() {
+    if (!mounted) {
+      return;
+    }
+
+    final scopeBox =
+        _selectorScopeKey.currentContext?.findRenderObject() as RenderBox?;
+    final itemBox =
+        _itemKeyFor(widget.currentIndex).currentContext?.findRenderObject()
+            as RenderBox?;
+
+    if (scopeBox == null || itemBox == null) {
+      if (_selectorTop != null || _selectorHeight != null) {
+        setState(() {
+          _selectorTop = null;
+          _selectorHeight = null;
+        });
+      }
+      return;
+    }
+
+    final offset = itemBox.localToGlobal(Offset.zero, ancestor: scopeBox);
+    final nextTop = offset.dy;
+    final nextHeight = itemBox.size.height;
+
+    final shouldUpdate =
+        _selectorTop == null ||
+        _selectorHeight == null ||
+        (nextTop - _selectorTop!).abs() > 0.5 ||
+        (nextHeight - _selectorHeight!).abs() > 0.5;
+
+    if (shouldUpdate) {
+      setState(() {
+        _selectorTop = nextTop;
+        _selectorHeight = nextHeight;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final language = context.language;
+    final auth = context.watch<AuthProvider>();
+
+    _queueSelectorSync();
 
     return Container(
       width: AppTheme.sidebarExpandedWidth,
@@ -51,7 +124,7 @@ class _SidebarNavigationState extends State<SidebarNavigation> {
                       SizedBox(height: isCompactHeight ? 10 : 16),
                       _buildLogo(language),
                       SizedBox(height: isCompactHeight ? 20 : 32),
-                      _buildNavigationSection(language, isCompactHeight),
+                      _buildNavigationSection(language, auth, isCompactHeight),
                       const Spacer(),
                       _buildUserSection(language),
                       SizedBox(height: isCompactHeight ? 10 : 16),
@@ -66,132 +139,209 @@ class _SidebarNavigationState extends State<SidebarNavigation> {
     );
   }
 
-  Widget _buildNavigationSection(dynamic language, bool isCompactHeight) {
-    return Column(
+  Widget _buildNavigationSection(
+    dynamic language,
+    AuthProvider auth,
+    bool isCompactHeight,
+  ) {
+    final isSuperTeacher = auth.user?.isSuperTeacher == true;
+    final mainItems = <_SidebarMenuItemData>[
+      _SidebarMenuItemData(
+        index: 0,
+        icon: Icons.dashboard_rounded,
+        label: language.tr('dashboard'),
+      ),
+      _SidebarMenuItemData(
+        index: 1,
+        icon: Icons.history_rounded,
+        label: language.tr('history'),
+      ),
+      _SidebarMenuItemData(
+        index: 2,
+        icon: Icons.qr_code_scanner_rounded,
+        label: language.tr('roomScanner'),
+      ),
+      _SidebarMenuItemData(
+        index: 3,
+        icon: Icons.group_add_rounded,
+        label: language.tr('batchRegister'),
+      ),
+    ];
+
+    final utilityItems = <_SidebarMenuItemData>[
+      _SidebarMenuItemData(
+        index: 4,
+        icon: Icons.person_rounded,
+        label: language.tr('profile'),
+      ),
+      _SidebarMenuItemData(
+        index: 8,
+        icon: Icons.notifications_outlined,
+        label: language.tr('notifications'),
+      ),
+      _SidebarMenuItemData(
+        index: 9,
+        icon: Icons.event_note_rounded,
+        label: language.tr('leaveRequests'),
+      ),
+    ];
+
+    final managementItems = <_SidebarMenuItemData>[
+      if (!isSuperTeacher)
+        _SidebarMenuItemData(
+          index: 6,
+          icon: Icons.edit_note_rounded,
+          label: language.tr('editAttendance'),
+        ),
+      _SidebarMenuItemData(
+        index: 7,
+        icon: Icons.class_rounded,
+        label: language.tr('classes'),
+      ),
+      if (!isSuperTeacher &&
+          (auth.user?.isAdmin == true || auth.user?.isTeacher == true))
+        _SidebarMenuItemData(
+          index: 13,
+          icon: Icons.download_for_offline_rounded,
+          label: language.tr('exportCenter'),
+        ),
+      if (!isSuperTeacher)
+        _SidebarMenuItemData(
+          index: 11,
+          icon: Icons.fact_check_rounded,
+          label: language.tr('rollCall'),
+        ),
+      if (auth.user?.isAdmin == true || auth.user?.isTeacher == true)
+        _SidebarMenuItemData(
+          index: 14,
+          icon: Icons.groups_2_rounded,
+          label: language.tr('supervisorHub'),
+        ),
+      if (auth.isAdmin)
+        _SidebarMenuItemData(
+          index: 5,
+          icon: Icons.admin_panel_settings_rounded,
+          label: language.tr('adminPanel'),
+        ),
+    ];
+
+    return Stack(
+      key: _selectorScopeKey,
       children: [
-        _SidebarItem(
-          icon: Icons.dashboard_rounded,
-          label: language.tr('dashboard'),
-          isSelected: widget.currentIndex == 0,
-          isExpanded: _isExpanded,
-          onTap: () => widget.onItemSelected(0),
-          compact: isCompactHeight,
-        ),
-        _SidebarItem(
-          icon: Icons.history_rounded,
-          label: language.tr('history'),
-          isSelected: widget.currentIndex == 1,
-          isExpanded: _isExpanded,
-          onTap: () => widget.onItemSelected(1),
-          compact: isCompactHeight,
-        ),
-        _SidebarItem(
-          icon: Icons.qr_code_scanner_rounded,
-          label: language.tr('roomScanner'),
-          isSelected: widget.currentIndex == 2,
-          isExpanded: _isExpanded,
-          onTap: () => widget.onItemSelected(2),
-          compact: isCompactHeight,
-        ),
-        _SidebarItem(
-          icon: Icons.group_add_rounded,
-          label: language.tr('batchRegister'),
-          isSelected: widget.currentIndex == 3,
-          isExpanded: _isExpanded,
-          onTap: () => widget.onItemSelected(3),
-          compact: isCompactHeight,
-        ),
-        SizedBox(height: isCompactHeight ? 4 : 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Divider(
-            color: AppTheme.glassBorder,
-            thickness: 0.5,
-          ),
-        ),
-        SizedBox(height: isCompactHeight ? 4 : 8),
-        _SidebarItem(
-          icon: Icons.person_rounded,
-          label: language.tr('profile'),
-          isSelected: widget.currentIndex == 4,
-          isExpanded: _isExpanded,
-          onTap: () => widget.onItemSelected(4),
-          compact: isCompactHeight,
-        ),
-        _SidebarItem(
-          icon: Icons.notifications_outlined,
-          label: language.tr('notifications'),
-          isSelected: widget.currentIndex == 8,
-          isExpanded: _isExpanded,
-          onTap: () => widget.onItemSelected(8),
-          compact: isCompactHeight,
-        ),
-        _SidebarItem(
-          icon: Icons.event_note_rounded,
-          label: language.tr('leaveRequests'),
-          isSelected: widget.currentIndex == 9,
-          isExpanded: _isExpanded,
-          onTap: () => widget.onItemSelected(9),
-          compact: isCompactHeight,
-        ),
-        SizedBox(height: isCompactHeight ? 4 : 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Divider(
-            color: AppTheme.glassBorder,
-            thickness: 0.5,
-          ),
-        ),
-        if (_isExpanded)
-          Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              top: isCompactHeight ? 8 : 12,
-              bottom: 4,
-            ),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                language.tr('management'),
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textMuted,
-                  letterSpacing: 1.5,
+        if (_selectorTop != null && _selectorHeight != null)
+          AnimatedPositioned(
+            duration: AppTheme.animNormal,
+            curve: Curves.easeOutCubic,
+            left: 0,
+            right: 0,
+            top: _selectorTop!,
+            height: _selectorHeight!,
+            child: IgnorePointer(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 2,
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: AlignmentDirectional.centerStart,
+                      end: AlignmentDirectional.centerEnd,
+                      colors: [
+                        AppTheme.primaryColor.withValues(alpha: 0.18),
+                        AppTheme.secondaryColor.withValues(alpha: 0.08),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.18),
+                      width: 0.7,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryGlow.withValues(alpha: 0.55),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Container(
+                      width: 4,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(999),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        _SidebarItem(
-          icon: Icons.edit_note_rounded,
-          label: language.tr('editAttendance'),
-          isSelected: widget.currentIndex == 6,
-          isExpanded: _isExpanded,
-          onTap: () => widget.onItemSelected(6),
-          compact: isCompactHeight,
-        ),
-        _SidebarItem(
-          icon: Icons.class_rounded,
-          label: language.tr('classes'),
-          isSelected: widget.currentIndex == 7,
-          isExpanded: _isExpanded,
-          onTap: () => widget.onItemSelected(7),
-          compact: isCompactHeight,
-        ),
-        Consumer<AuthProvider>(
-          builder: (context, auth, _) {
-            if (!auth.isAdmin) return const SizedBox.shrink();
-            return _SidebarItem(
-              icon: Icons.admin_panel_settings_rounded,
-              label: language.tr('adminPanel'),
-              isSelected: widget.currentIndex == 5,
-              isExpanded: _isExpanded,
-              onTap: () => widget.onItemSelected(5),
-              compact: isCompactHeight,
-            );
-          },
+        Column(
+          children: [
+            ...mainItems.map((item) => _buildNavItem(item, isCompactHeight)),
+            SizedBox(height: isCompactHeight ? 4 : 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Divider(color: AppTheme.glassBorder, thickness: 0.5),
+            ),
+            SizedBox(height: isCompactHeight ? 4 : 8),
+            ...utilityItems.map((item) => _buildNavItem(item, isCompactHeight)),
+            SizedBox(height: isCompactHeight ? 4 : 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Divider(color: AppTheme.glassBorder, thickness: 0.5),
+            ),
+            if (_isExpanded)
+              Padding(
+                padding: EdgeInsets.only(
+                  left: 20,
+                  top: isCompactHeight ? 8 : 12,
+                  bottom: 4,
+                ),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    language.tr('management'),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textMuted,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ...managementItems.map(
+              (item) => _buildNavItem(item, isCompactHeight),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _buildNavItem(_SidebarMenuItemData item, bool isCompactHeight) {
+    return _SidebarItem(
+      key: _itemKeyFor(item.index),
+      icon: item.icon,
+      label: item.label,
+      isSelected: widget.currentIndex == item.index,
+      isExpanded: _isExpanded,
+      onTap: () => widget.onItemSelected(item.index),
+      compact: isCompactHeight,
     );
   }
 
@@ -331,6 +481,18 @@ class _SidebarNavigationState extends State<SidebarNavigation> {
   }
 }
 
+class _SidebarMenuItemData {
+  final int index;
+  final IconData icon;
+  final String label;
+
+  const _SidebarMenuItemData({
+    required this.index,
+    required this.icon,
+    required this.label,
+  });
+}
+
 class _SidebarItem extends StatefulWidget {
   final IconData icon;
   final String label;
@@ -340,6 +502,7 @@ class _SidebarItem extends StatefulWidget {
   final bool compact;
 
   const _SidebarItem({
+    super.key,
     required this.icon,
     required this.label,
     required this.isSelected,
@@ -360,72 +523,89 @@ class _SidebarItemState extends State<_SidebarItem> {
     final isActive = widget.isSelected;
     final verticalPadding = widget.compact ? 10.0 : 12.0;
     final iconSize = widget.compact ? 20.0 : 22.0;
-    final color = isActive
-        ? AppTheme.primaryColor
-        : _isHovered
+    final iconColor = isActive
         ? AppTheme.primaryLight
+        : _isHovered
+        ? AppTheme.textPrimary
         : AppTheme.textSecondary;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          child: AnimatedScale(
+            scale: _isHovered ? 1.012 : 1,
             duration: AppTheme.animFast,
-            padding: EdgeInsets.symmetric(
-              horizontal: widget.isExpanded ? 14 : 0,
-              vertical: verticalPadding,
-            ),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? AppTheme.primaryColor.withValues(alpha: 0.12)
-                  : _isHovered
-                  ? AppTheme.glassHighlight
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-              border: isActive
-                  ? Border.all(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.2),
-                      width: 0.5,
-                    )
-                  : null,
-            ),
-            child: Row(
-              mainAxisAlignment: widget.isExpanded
-                  ? MainAxisAlignment.start
-                  : MainAxisAlignment.center,
-              children: [
-                Icon(widget.icon, color: color, size: iconSize),
-                if (widget.isExpanded) ...[
-                  const SizedBox(width: 12),
-                  Text(
-                    widget.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                      color: isActive ? AppTheme.textPrimary : color,
-                    ),
-                  ),
-                ],
-                if (isActive && widget.isExpanded) ...[
-                  const Spacer(),
-                  Container(
-                    width: 6,
-                    height: 6,
+            curve: Curves.easeOutCubic,
+            child: AnimatedContainer(
+              duration: AppTheme.animFast,
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.isExpanded ? 14 : 0,
+                vertical: verticalPadding,
+              ),
+              decoration: BoxDecoration(
+                color: !isActive && _isHovered
+                    ? AppTheme.glassHighlight
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisAlignment: widget.isExpanded
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
+                children: [
+                  AnimatedContainer(
+                    duration: AppTheme.animFast,
+                    padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: AppTheme.primaryGlow, blurRadius: 6),
-                      ],
+                      color: isActive
+                          ? AppTheme.primaryColor.withValues(alpha: 0.16)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
                     ),
+                    child: Icon(widget.icon, color: iconColor, size: iconSize),
                   ),
+                  if (widget.isExpanded) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AnimatedDefaultTextStyle(
+                        duration: AppTheme.animFast,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isActive
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: isActive
+                              ? AppTheme.textPrimary
+                              : (_isHovered
+                                    ? AppTheme.textPrimary
+                                    : AppTheme.textSecondary),
+                        ),
+                        child: Text(widget.label),
+                      ),
+                    ),
+                  ],
+                  if (isActive && widget.isExpanded)
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryGlow.withValues(alpha: 0.8),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
-              ],
+              ),
             ),
           ),
         ),
