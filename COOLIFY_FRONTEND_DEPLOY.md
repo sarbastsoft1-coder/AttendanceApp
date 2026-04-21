@@ -39,7 +39,7 @@ Create a new application with these values:
 Set this in the frontend Coolify app:
 
 ```env
-API_BASE_URL=http://your-backend-domain
+API_BASE_URL=https://your-backend-domain
 ```
 
 Use the backend domain that is already working in Coolify.
@@ -48,7 +48,7 @@ This variable is required. If it is missing, the frontend build will now fail in
 Example for your current backend:
 
 ```env
-API_BASE_URL=http://ik0ksg08k8kgggk4s48ok00.45.32.155.226.sslip.io
+API_BASE_URL=https://ik0ksg08k8gggk4s48ok00.45.32.155.226.sslip.io
 ```
 
 ## Backend CORS
@@ -58,7 +58,7 @@ After you know the frontend domain, update the backend app's `ALLOWED_ORIGINS` t
 Example:
 
 ```env
-ALLOWED_ORIGINS=http://your-frontend-domain,http://your-backend-domain
+ALLOWED_ORIGINS=https://your-frontend-domain,https://your-backend-domain
 ```
 
 ## Desktop app
@@ -71,7 +71,7 @@ The desktop app can use the same backend by:
 Example:
 
 ```bash
-flutter run -d windows --dart-define=API_BASE_URL=http://your-backend-domain
+flutter run -d windows --dart-define=API_BASE_URL=https://your-backend-domain
 ```
 
 ## Verification

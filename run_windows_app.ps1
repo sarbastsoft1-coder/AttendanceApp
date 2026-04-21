@@ -1,5 +1,6 @@
 param(
-  [switch]$Rebuild
+  [switch]$Rebuild,
+  [string]$BackendUrl
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +46,47 @@ function Test-BackendHealthy {
     }
 
     $openApi = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/openapi.json" -Method Get -TimeoutSec 2
+    return (
+      $openApi.info.title -eq "Recognition Based Automated Attendance System" -and
+      $null -ne $openApi.paths."/api/auth/register" -and
+      $null -ne $openApi.paths."/api/auth/login-json"
+    )
+  }
+  catch {
+    return $false
+  }
+  finally {
+    $ErrorActionPreference = $previousPreference
+  }
+}
+
+function Get-NormalizedBaseUrl {
+  param(
+    [string]$Url
+  )
+
+  return $Url.Trim().TrimEnd("/")
+}
+
+function Test-BackendHealthyUrl {
+  param(
+    [string]$BaseUrl
+  )
+
+  $normalizedUrl = Get-NormalizedBaseUrl -Url $BaseUrl
+  if ([string]::IsNullOrWhiteSpace($normalizedUrl)) {
+    return $false
+  }
+
+  $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $health = Invoke-RestMethod -Uri "$normalizedUrl/health" -Method Get -TimeoutSec 5
+    if ($health.status -ne "healthy") {
+      return $false
+    }
+
+    $openApi = Invoke-RestMethod -Uri "$normalizedUrl/openapi.json" -Method Get -TimeoutSec 5
     return (
       $openApi.info.title -eq "Recognition Based Automated Attendance System" -and
       $null -ne $openApi.paths."/api/auth/register" -and
@@ -124,10 +166,6 @@ function Sync-DesktopAppBaseUrlPreference {
   $prefsObject | ConvertTo-Json -Compress | Set-Content -Path $prefsPath -Encoding UTF8
 }
 
-if (-not (Test-Path $backendDir)) {
-  throw "Backend folder not found at: $backendDir"
-}
-
 if ($Rebuild -or -not (Test-Path $exePath)) {
   if (-not (Test-Path $buildScript)) {
     throw "Build script not found at: $buildScript"
@@ -135,75 +173,94 @@ if ($Rebuild -or -not (Test-Path $exePath)) {
   & $buildScript
 }
 
-$pythonCandidates = @(
-  (Join-Path $projectRoot ".venv\Scripts\python.exe"),
-  (Join-Path $backendDir "venv\Scripts\python.exe")
-)
+$backendBaseUrl = $null
+$startBackend = $false
 
-$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-if ($pythonCmd) {
-  $pythonCandidates += $pythonCmd.Source
-}
-
-$pythonPath = $null
-foreach ($candidate in ($pythonCandidates | Where-Object { $_ } | Select-Object -Unique)) {
-  if (Test-PythonBackendStack -PythonExe $candidate) {
-    $pythonPath = $candidate
-    break
+if (-not [string]::IsNullOrWhiteSpace($BackendUrl)) {
+  $backendBaseUrl = Get-NormalizedBaseUrl -Url $BackendUrl
+  if (-not (Test-BackendHealthyUrl -BaseUrl $backendBaseUrl)) {
+    throw "Backend URL is not healthy or is not this attendance API: $backendBaseUrl"
   }
-}
-
-if (-not $pythonPath) {
-  throw "No Python environment with required backend packages was found (uvicorn, fastapi, cv2, face_recognition)."
-}
-
-$backendLog = Join-Path $backendDir "backend_windows.log"
-$backendErr = Join-Path $backendDir "backend_windows.err.log"
-$backendPortCandidates = @(8000, 8001, 8010, 8011)
-$backendSelection = Get-BackendPortSelection -Candidates $backendPortCandidates
-$backendPort = [int]$backendSelection.Port
-$startBackend = [bool]$backendSelection.StartBackend
-
-if ($startBackend) {
-  Write-Host "Starting backend API on port $backendPort..."
-  $backendProcess = Start-Process `
-    -FilePath $pythonPath `
-    -ArgumentList @("-X", "utf8", "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "$backendPort") `
-    -WorkingDirectory $backendDir `
-    -RedirectStandardOutput $backendLog `
-    -RedirectStandardError $backendErr `
-    -PassThru
+  Write-Host "Using remote backend API at $backendBaseUrl"
 }
 else {
-  Write-Host "Using existing backend API on port $backendPort..."
+  if (-not (Test-Path $backendDir)) {
+    throw "Backend folder not found at: $backendDir"
+  }
+
+  $pythonCandidates = @(
+    (Join-Path $projectRoot ".venv\Scripts\python.exe"),
+    (Join-Path $backendDir "venv\Scripts\python.exe")
+  )
+
+  $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+  if ($pythonCmd) {
+    $pythonCandidates += $pythonCmd.Source
+  }
+
+  $pythonPath = $null
+  foreach ($candidate in ($pythonCandidates | Where-Object { $_ } | Select-Object -Unique)) {
+    if (Test-PythonBackendStack -PythonExe $candidate) {
+      $pythonPath = $candidate
+      break
+    }
+  }
+
+  if (-not $pythonPath) {
+    throw "No Python environment with required backend packages was found (uvicorn, fastapi, cv2, face_recognition)."
+  }
+
+  $backendLog = Join-Path $backendDir "backend_windows.log"
+  $backendErr = Join-Path $backendDir "backend_windows.err.log"
+  $backendPortCandidates = @(8000, 8001, 8010, 8011)
+  $backendSelection = Get-BackendPortSelection -Candidates $backendPortCandidates
+  $backendPort = [int]$backendSelection.Port
+  $startBackend = [bool]$backendSelection.StartBackend
+
+  if ($startBackend) {
+    Write-Host "Starting backend API on port $backendPort..."
+    $backendProcess = Start-Process `
+      -FilePath $pythonPath `
+      -ArgumentList @("-X", "utf8", "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "$backendPort") `
+      -WorkingDirectory $backendDir `
+      -RedirectStandardOutput $backendLog `
+      -RedirectStandardError $backendErr `
+      -PassThru
+  }
+  else {
+    Write-Host "Using existing backend API on port $backendPort..."
+  }
 }
 
 try {
-  $backendReady = $false
-  for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Seconds 1
+  if ($null -eq $backendBaseUrl) {
+    $backendReady = $false
+    for ($i = 0; $i -lt 30; $i++) {
+      Start-Sleep -Seconds 1
 
-    if ($startBackend -and $backendProcess.HasExited) {
-      throw "Backend exited early. Check logs: $backendLog and $backendErr"
-    }
+      if ($startBackend -and $backendProcess.HasExited) {
+        throw "Backend exited early. Check logs: $backendLog and $backendErr"
+      }
 
-    try {
-      $health = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/health" -Method Get -TimeoutSec 2
-      if ($health.status -eq "healthy") {
-        $backendReady = $true
-        break
+      try {
+        $health = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/health" -Method Get -TimeoutSec 2
+        if ($health.status -eq "healthy") {
+          $backendReady = $true
+          break
+        }
+      }
+      catch {
+        # Keep waiting until backend is ready.
       }
     }
-    catch {
-      # Keep waiting until backend is ready.
+
+    if (-not $backendReady) {
+      throw "Backend did not become healthy within 30 seconds on port $backendPort. Check: $backendErr"
     }
+
+    $backendBaseUrl = "http://127.0.0.1:$backendPort"
   }
 
-  if (-not $backendReady) {
-    throw "Backend did not become healthy within 30 seconds on port $backendPort. Check: $backendErr"
-  }
-
-  $backendBaseUrl = "http://127.0.0.1:$backendPort"
   Sync-DesktopAppBaseUrlPreference -BaseUrl $backendBaseUrl
   Write-Host "Using backend API URL $backendBaseUrl"
 
