@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
 
 from database import (
     get_db, SessionLocal, User, Attendance, Class, Student, init_db,
@@ -68,7 +68,7 @@ app = FastAPI(
 _allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins,
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -126,7 +126,6 @@ def _get_settings(db: Session) -> AppSettings:
 
 ADMIN_ROLES = {"admin", "super_admin"}
 TEACHER_ROLES = {"teacher", "super_teacher"}
-GROUP_CREATOR_ROLES = ADMIN_ROLES | TEACHER_ROLES
 GROUP_MANAGER_ROLES = {"admin", "super_admin", "super_teacher"}
 SHARE_TARGET_ROLES = {"teacher", "super_teacher"}
 MANAGEABLE_USER_ROLES = {"teacher", "super_teacher", "admin", "super_admin"}
@@ -246,8 +245,12 @@ def _can_manage_groups(user: User) -> bool:
     return _has_global_group_access(user)
 
 
+def _can_use_user_groups(user: User) -> bool:
+    return user.role != "managed_student"
+
+
 def _can_create_groups(user: User) -> bool:
-    return user.role in GROUP_CREATOR_ROLES
+    return _can_use_user_groups(user)
 
 
 def _can_manage_group(user: User, group: TeacherGroup) -> bool:
@@ -898,8 +901,25 @@ async def root():
 
 
 @app.get("/health", tags=["Health"])
-async def health_check():
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+async def health_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as exc:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "timestamp": datetime.utcnow().isoformat(),
+                "database": "unavailable",
+                "detail": str(exc),
+            },
+        )
+
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "database": "healthy",
+    }
 
 
 # ========================
@@ -2320,7 +2340,7 @@ async def create_teacher_group(
     if not _can_create_groups(current_user):
         raise HTTPException(
             status_code=403,
-            detail="Only user and admin accounts can create user groups",
+            detail="Managed student accounts cannot create user groups",
         )
 
     group = TeacherGroup(
@@ -2385,10 +2405,10 @@ async def invite_teachers_to_group(
 
     for email in normalized_emails:
         existing_user = db.query(User).filter(func.lower(User.email) == email).first()
-        if existing_user and existing_user.role not in (TEACHER_ROLES | ADMIN_ROLES):
+        if existing_user and not _can_use_user_groups(existing_user):
             raise HTTPException(
                 status_code=400,
-                detail=f"{email} is not a user account and cannot be added to a user group",
+                detail=f"{email} is a managed student account and cannot be added to a user group",
             )
 
         if existing_user and _is_group_member(db, existing_user.id, group_id):
@@ -2471,8 +2491,11 @@ async def respond_to_teacher_group_invitation(
         raise HTTPException(status_code=400, detail="Invitation already processed")
     if invite.email.lower() != current_user.email.lower() and invite.teacher_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to respond to this invitation")
-    if current_user.role not in (TEACHER_ROLES | ADMIN_ROLES):
-        raise HTTPException(status_code=400, detail="Only user accounts can join user groups")
+    if not _can_use_user_groups(current_user):
+        raise HTTPException(
+            status_code=400,
+            detail="Managed student accounts cannot join user groups",
+        )
 
     invite.status = data.status
     invite.teacher_id = current_user.id

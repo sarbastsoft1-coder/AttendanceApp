@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    if (user.isAdmin || user.isTeacher) {
+    if (user.canUseGroups) {
       supervisionProvider.fetchOverview();
     }
   }
@@ -146,8 +146,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             FilledButton(
               onPressed: () async {
+                final trimmedName = nameController.text.trim();
+                if (trimmedName.length < 2) {
+                  _showError(language.tr('Name must be at least 2 characters'));
+                  return;
+                }
+
                 final success = await supervision.createGroup(
-                  name: nameController.text,
+                  name: trimmedName,
                   description: descriptionController.text,
                 );
                 if (!mounted || !dialogContext.mounted) {
@@ -892,8 +898,7 @@ class _DashboardContent extends StatelessWidget {
     final useSplitLayout = ResponsiveLayout.width(context) >= 1120;
     final groupPanel = Consumer<AuthProvider>(
       builder: (context, auth, _) {
-        final showGroupPanel =
-            auth.user?.isAdmin == true || auth.user?.isTeacher == true;
+        final showGroupPanel = auth.user?.canUseGroups == true;
         if (!showGroupPanel) {
           return const SizedBox.shrink();
         }
@@ -1311,6 +1316,7 @@ class _QuickActionsPanel extends StatelessWidget {
       builder: (context, auth, _) {
         final isManagementUser =
             auth.user?.isAdmin == true || auth.user?.isTeacher == true;
+        final canUseGroups = auth.user?.canUseGroups == true;
 
         return Container(
           padding: EdgeInsets.all(isMobile ? 20 : 24),
@@ -1382,8 +1388,7 @@ class _QuickActionsPanel extends StatelessWidget {
                       onTap: onExportCenterTap,
                       isCompact: isMobile,
                     ),
-                  if (auth.user?.isAdmin == true ||
-                      auth.user?.isTeacher == true)
+                  if (canUseGroups)
                     _ActionTile(
                       icon: Icons.groups_2_rounded,
                       label: language.tr('supervisorHub'),
@@ -1523,8 +1528,7 @@ class _TeacherGroupsPanel extends StatelessWidget {
                 context.read<AuthProvider>().user?.isSupervisor == true);
         final canCreateGroups =
             overview?.canCreateGroups ??
-            (context.read<AuthProvider>().user?.isAdmin == true ||
-                context.read<AuthProvider>().user?.isTeacher == true);
+            (context.read<AuthProvider>().user?.canUseGroups == true);
         final canShareClasses =
             overview?.canShareClasses ??
             (context.read<AuthProvider>().user?.isAdmin == true ||

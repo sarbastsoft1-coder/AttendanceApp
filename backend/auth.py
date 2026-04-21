@@ -134,3 +134,41 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     if not verify_password(password, user.hashed_password):
         return None
     return user
+
+# ========================
+# ROLE-BASED ACCESS HELPERS
+# ========================
+
+ADMIN_ROLES = {"admin", "super_admin"}
+TEACHER_ROLES = {"teacher", "super_teacher"}
+GROUP_MANAGER_ROLES = {"admin", "super_admin", "super_teacher"}
+GROUP_CREATOR_ROLES = ADMIN_ROLES | TEACHER_ROLES
+SHARE_TARGET_ROLES = {"teacher", "super_teacher"}
+
+def is_admin_role(user: User) -> bool:
+    """Check if user has an admin role"""
+    return user.role in ADMIN_ROLES
+
+def is_teacher_role(user: User) -> bool:
+    """Check if user has a teacher role"""
+    return user.role in TEACHER_ROLES
+
+def has_global_group_access(user: User) -> bool:
+    """Check if user has global management access to groups"""
+    return user.role in GROUP_MANAGER_ROLES
+
+def can_create_groups(user: User) -> bool:
+    """Check if user can create user groups"""
+    return user.role in GROUP_CREATOR_ROLES
+
+def can_manage_groups(user: User) -> bool:
+    """Simplified manager check"""
+    return has_global_group_access(user)
+
+def can_manage_classes(user: User) -> bool:
+    """Check if user can manage classes (admin or teacher)"""
+    return user.role in ADMIN_ROLES or user.role in TEACHER_ROLES
+
+def can_review_leave_requests(user: User) -> bool:
+    """Check if user can review leave requests"""
+    return user.role in ADMIN_ROLES or user.role == "super_teacher"

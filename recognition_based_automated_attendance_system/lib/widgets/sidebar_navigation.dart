@@ -145,6 +145,7 @@ class _SidebarNavigationState extends State<SidebarNavigation> {
     bool isCompactHeight,
   ) {
     final isSuperTeacher = auth.user?.isSuperTeacher == true;
+    final canUseGroups = auth.user?.canUseGroups == true;
     final mainItems = <_SidebarMenuItemData>[
       _SidebarMenuItemData(
         index: 0,
@@ -211,7 +212,7 @@ class _SidebarNavigationState extends State<SidebarNavigation> {
           icon: Icons.fact_check_rounded,
           label: language.tr('rollCall'),
         ),
-      if (auth.user?.isAdmin == true || auth.user?.isTeacher == true)
+      if (canUseGroups)
         _SidebarMenuItemData(
           index: 14,
           icon: Icons.groups_2_rounded,

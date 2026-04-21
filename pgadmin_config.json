@@ -1,0 +1,16 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "AttendanceApp DB",
+      "Group": "Servers",
+      "Host": "localhost",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "postgres",
+      "SSLMode": "prefer",
+      "Password": "postgres",
+      "SavePassword": true,
+      "DbRestriction": "attendance_db"
+    }
+  }
+}

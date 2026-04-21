@@ -56,7 +56,7 @@ class _SupervisionDashboardScreenState
 
   String _createGroupPermissionMessage() {
     return context.tRead(
-      'Only user and admin accounts can create user groups. Ask a user or admin to create one or add you to an existing group.',
+      'Managed student accounts cannot create user groups. Ask an administrator to convert this account before using the group workspace.',
     );
   }
 
@@ -114,8 +114,14 @@ class _SupervisionDashboardScreenState
             ),
             FilledButton(
               onPressed: () async {
+                final trimmedName = nameController.text.trim();
+                if (trimmedName.length < 2) {
+                  _showError(language.tr('Name must be at least 2 characters'));
+                  return;
+                }
+
                 final success = await supervision.createGroup(
-                  name: nameController.text,
+                  name: trimmedName,
                   description: descriptionController.text,
                 );
                 if (!mounted || !dialogContext.mounted) {
@@ -136,6 +142,9 @@ class _SupervisionDashboardScreenState
         );
       },
     );
+
+    nameController.dispose();
+    descriptionController.dispose();
   }
 
   Future<void> _showInviteTeachersDialog(TeacherGroup group) async {

@@ -2,6 +2,7 @@
 Database configuration with PostgreSQL and SQLAlchemy models
 """
 import os
+from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 from sqlalchemy import (
@@ -10,17 +11,48 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.pool import NullPool
 
 load_dotenv()
 
+_DEFAULT_SQLITE_PATH = Path(__file__).resolve().parent / "attendance.db"
+_DEFAULT_SQLITE_URL = f"sqlite:///{_DEFAULT_SQLITE_PATH.as_posix()}"
+_PLACEHOLDER_DB_MARKERS = (
+    "your_password",
+    "username:password",
+    "change-this",
+)
+
+
+def _resolve_database_url() -> str:
+    """Prefer a real DATABASE_URL, but fall back for placeholder local configs."""
+    configured_url = (os.getenv("DATABASE_URL") or "").strip()
+    if not configured_url:
+        return _DEFAULT_SQLITE_URL
+
+    normalized_url = configured_url.lower()
+    if any(marker in normalized_url for marker in _PLACEHOLDER_DB_MARKERS):
+        print(
+            "DATABASE_URL contains placeholder credentials. "
+            f"Falling back to local SQLite at {_DEFAULT_SQLITE_PATH}."
+        )
+        return _DEFAULT_SQLITE_URL
+
+    return configured_url
+
+
 # Database URL from environment - Default to SQLite for easy setup
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./attendance.db")
+DATABASE_URL = _resolve_database_url()
 
 # Create engine
 if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=NullPool,
+    )
 else:
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

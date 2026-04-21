@@ -272,7 +272,7 @@ class ApiService {
     if (e.response != null) {
       final data = e.response!.data;
       if (data is Map && data.containsKey('detail')) {
-        message = data['detail'].toString();
+        message = _extractDetailMessage(data['detail']);
       } else if (e.response!.statusCode == 401) {
         message = 'Unauthorized. Please login again.';
       } else if (e.response!.statusCode == 403) {
@@ -289,5 +289,39 @@ class ApiService {
     }
 
     return Exception(message);
+  }
+
+  String _extractDetailMessage(dynamic detail) {
+    if (detail is String && detail.trim().isNotEmpty) {
+      return detail.trim();
+    }
+
+    if (detail is List) {
+      final messages = <String>[];
+      for (final item in detail) {
+        if (item is Map && item['msg'] is String) {
+          final message = (item['msg'] as String).trim();
+          if (message.isNotEmpty && !messages.contains(message)) {
+            messages.add(message);
+          }
+        } else {
+          final message = item.toString().trim();
+          if (message.isNotEmpty && !messages.contains(message)) {
+            messages.add(message);
+          }
+        }
+      }
+
+      if (messages.isNotEmpty) {
+        return messages.join('\n');
+      }
+    }
+
+    final fallback = detail?.toString().trim();
+    if (fallback != null && fallback.isNotEmpty) {
+      return fallback;
+    }
+
+    return 'An error occurred';
   }
 }

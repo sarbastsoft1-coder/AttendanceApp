@@ -50,11 +50,6 @@ class ApiConfig {
 
   /// Load saved base URL from SharedPreferences (call once at startup)
   static Future<void> loadBaseUrl() async {
-    if (kIsWeb) {
-      _runtimeBaseUrl = _defaultBaseUrl;
-      return;
-    }
-
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_baseUrlKey);
     final normalizedSaved = saved == null || saved.trim().isEmpty
@@ -62,7 +57,9 @@ class ApiConfig {
         : _normalizeBaseUrl(saved);
 
     final preferred = normalizedSaved ?? _defaultBaseUrl;
-    final resolved = await _resolveDesktopBaseUrl(preferred);
+    final resolved = kIsWeb
+        ? await _resolveWebBaseUrl(preferred)
+        : await _resolveDesktopBaseUrl(preferred);
     _runtimeBaseUrl = resolved;
 
     if (normalizedSaved != resolved) {
@@ -80,12 +77,9 @@ class ApiConfig {
 
   /// Reset base URL to the default
   static Future<String> resetBaseUrl() async {
-    if (kIsWeb) {
-      await setBaseUrl(_defaultBaseUrl);
-      return _runtimeBaseUrl;
-    }
-
-    final resolved = await _resolveDesktopBaseUrl(_defaultBaseUrl);
+    final resolved = kIsWeb
+        ? await _resolveWebBaseUrl(_defaultBaseUrl)
+        : await _resolveDesktopBaseUrl(_defaultBaseUrl);
     await setBaseUrl(resolved);
     return _runtimeBaseUrl;
   }
@@ -117,6 +111,62 @@ class ApiConfig {
     }
 
     return preferred;
+  }
+
+  static Future<String> _resolveWebBaseUrl(String preferred) async {
+    final candidates = <String>[];
+    final seen = <String>{};
+
+    void addCandidate(String url) {
+      final normalized = _normalizeBaseUrl(url);
+      if (normalized.isEmpty || seen.contains(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      candidates.add(normalized);
+    }
+
+    addCandidate(preferred);
+    for (final candidate in _webDiscoveryBaseUrls) {
+      addCandidate(candidate);
+    }
+
+    for (final candidate in candidates) {
+      if (await _isHealthyBaseUrl(candidate)) {
+        return candidate;
+      }
+    }
+
+    return preferred;
+  }
+
+  static List<String> get _webDiscoveryBaseUrls {
+    final origin = _normalizeBaseUrl(Uri.base.origin);
+    final host = Uri.base.host.toLowerCase();
+    final scheme = Uri.base.scheme.isEmpty ? 'http' : Uri.base.scheme;
+    final isLocalHost =
+        host == 'localhost' || host == '127.0.0.1' || host == '0.0.0.0';
+
+    if (!isLocalHost) {
+      return [origin];
+    }
+
+    final hosts = <String>[
+      host,
+      if (host != '127.0.0.1') '127.0.0.1',
+      if (host != 'localhost') 'localhost',
+    ];
+    final ports = <int>[8000, 8001, 8010, 8011];
+    final urls = <String>[];
+
+    for (final candidateHost in hosts) {
+      for (final port in ports) {
+        urls.add('$scheme://$candidateHost:$port');
+      }
+    }
+
+    urls.add(origin);
+    return urls;
   }
 
   static Future<bool> isAttendanceBackend(String url) async {

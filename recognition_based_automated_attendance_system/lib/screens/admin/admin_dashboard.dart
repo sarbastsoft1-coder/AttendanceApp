@@ -15,6 +15,7 @@ import '../../models/class_model.dart';
 import '../../models/supervisor_dashboard_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/language_provider.dart';
+import '../../providers/supervision_provider.dart';
 import '../../widgets/responsive_layout.dart';
 import '../../widgets/stats_card.dart';
 import 'class_students_screen.dart';
@@ -54,6 +55,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadDashboard(refreshClasses: true);
+      context.read<SupervisionProvider>().fetchOverview();
       _syncLiveRefresh();
     });
   }
@@ -105,6 +107,97 @@ class _AdminDashboardState extends State<AdminDashboard> {
     });
     _syncLiveRefresh();
     _loadDashboard();
+  }
+
+  Future<void> _showCreateGroupDialog() async {
+    final language = context.language;
+    final supervision = context.read<SupervisionProvider>();
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(language.tr('createTeacherGroup')),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: language.tr('groupName'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descriptionController,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: InputDecoration(
+                    labelText: language.tr('groupDescription'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(language.tr('cancel')),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final trimmedName = nameController.text.trim();
+                if (trimmedName.length < 2) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        language.tr('Name must be at least 2 characters'),
+                      ),
+                      backgroundColor: AppTheme.errorColor,
+                    ),
+                  );
+                  return;
+                }
+
+                final success = await supervision.createGroup(
+                  name: trimmedName,
+                  description: descriptionController.text,
+                );
+                if (!mounted || !dialogContext.mounted) {
+                  return;
+                }
+                if (success) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(language.tr('groupCreated')),
+                      backgroundColor: AppTheme.successColor,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        supervision.error ?? language.tr('operationFailed'),
+                      ),
+                      backgroundColor: AppTheme.errorColor,
+                    ),
+                  );
+                }
+              },
+              child: Text(language.tr('createGroup')),
+            ),
+          ],
+        );
+      },
+    );
+
+    nameController.dispose();
+    descriptionController.dispose();
   }
 
   void _onTrendRangeChanged(SupervisorTrendRange value) {
@@ -628,6 +721,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
           spacing: 12,
           runSpacing: 12,
           children: [
+            Consumer<SupervisionProvider>(
+              builder: (context, supervision, _) {
+                final canCreateGroups =
+                    supervision.overview?.canCreateGroups ?? true;
+                if (!canCreateGroups) {
+                  return const SizedBox.shrink();
+                }
+
+                return FilledButton.icon(
+                  onPressed: supervision.isSubmitting
+                      ? null
+                      : _showCreateGroupDialog,
+                  icon: const Icon(Icons.groups_2_rounded),
+                  label: Text(context.tr('createGroup')),
+                );
+              },
+            ),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/supervision'),
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: Text(context.tr('supervisorHub')),
+            ),
             OutlinedButton.icon(
               onPressed: () =>
                   Navigator.pushNamed(context, '/admin/attendance'),
