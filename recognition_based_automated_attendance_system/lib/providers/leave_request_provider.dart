@@ -111,6 +111,41 @@ class LeaveRequestProvider with ChangeNotifier {
     }
   }
 
+  /// Update a pending leave request owned by the current user
+  Future<bool> updateLeaveRequest(
+    int leaveId, {
+    required DateTime leaveDate,
+    required String reason,
+  }) async {
+    _setLoading(true);
+    _error = null;
+
+    try {
+      final response = await _api.put(
+        ApiConfig.leaveRequestById(leaveId),
+        data: {
+          'leave_date': leaveDate.toIso8601String(),
+          'reason': reason.trim(),
+        },
+      );
+
+      final updated = LeaveRequest.fromJson(response.data);
+      final index = _leaveRequests.indexWhere((r) => r.id == leaveId);
+      if (index != -1) {
+        _leaveRequests[index] = updated;
+      } else {
+        _leaveRequests.insert(0, updated);
+      }
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      _setLoading(false);
+      return false;
+    }
+  }
+
   /// Delete a pending leave request
   Future<bool> deleteLeaveRequest(int leaveId) async {
     _setLoading(true);

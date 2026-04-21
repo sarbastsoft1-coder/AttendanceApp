@@ -41,9 +41,12 @@ class SupervisionProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> createGroup({required String name, String? description}) async {
-    return _submit(() async {
-      await _api.post(
+  Future<TeacherGroup?> createGroup({
+    required String name,
+    String? description,
+  }) async {
+    return _submitWithResult(() async {
+      final response = await _api.post(
         ApiConfig.supervisionGroups,
         data: {
           'name': name.trim(),
@@ -51,7 +54,12 @@ class SupervisionProvider with ChangeNotifier {
             'description': description.trim(),
         },
       );
+
+      final createdGroup = TeacherGroup.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
       await fetchOverview();
+      return createdGroup;
     });
   }
 
@@ -120,17 +128,24 @@ class SupervisionProvider with ChangeNotifier {
   }
 
   Future<bool> _submit(Future<void> Function() task) async {
+    final success = await _submitWithResult<bool>(() async {
+      await task();
+      return true;
+    });
+    return success ?? false;
+  }
+
+  Future<T?> _submitWithResult<T>(Future<T> Function() task) async {
     _isSubmitting = true;
     _error = null;
     notifyListeners();
 
     try {
-      await task();
-      return true;
+      return await task();
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
-      return false;
+      return null;
     } finally {
       _isSubmitting = false;
       notifyListeners();

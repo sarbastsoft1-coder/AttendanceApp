@@ -75,8 +75,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _openRouteAndRefresh(String routeName) async {
-    await Navigator.pushNamed(context, routeName);
+  Future<void> _openRouteAndRefresh(
+    String routeName, {
+    Object? arguments,
+  }) async {
+    await Navigator.pushNamed(context, routeName, arguments: arguments);
     if (mounted) {
       _loadData();
     }
@@ -106,77 +109,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _showCreateGroupDialog() async {
-    final language = context.language;
-    final supervision = context.read<SupervisionProvider>();
-    final nameController = TextEditingController();
-    final descriptionController = TextEditingController();
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(language.tr('createTeacherGroup')),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    labelText: language.tr('groupName'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  minLines: 3,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    labelText: language.tr('groupDescription'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(language.tr('cancel')),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final trimmedName = nameController.text.trim();
-                if (trimmedName.length < 2) {
-                  _showError(language.tr('Name must be at least 2 characters'));
-                  return;
-                }
-
-                final success = await supervision.createGroup(
-                  name: trimmedName,
-                  description: descriptionController.text,
-                );
-                if (!mounted || !dialogContext.mounted) {
-                  return;
-                }
-                if (success) {
-                  Navigator.pop(dialogContext);
-                  _showMessage(language.tr('groupCreated'));
-                } else {
-                  _showError(
-                    supervision.error ?? language.tr('operationFailed'),
-                  );
-                }
-              },
-              child: Text(language.tr('createGroup')),
-            ),
-          ],
-        );
-      },
+    await _openRouteAndRefresh(
+      '/supervision',
+      arguments: {'openCreateGroupDialog': true},
     );
-
-    nameController.dispose();
-    descriptionController.dispose();
   }
 
   Future<void> _showInviteTeachersDialog() async {

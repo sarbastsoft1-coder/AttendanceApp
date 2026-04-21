@@ -476,10 +476,19 @@ class _LeaveCard extends StatelessWidget {
 
   bool get _canReview => isTeacherOrAdmin && leave.isPending;
 
+  bool get _isOwner =>
+      currentUserId != null && leave.submittedById == currentUserId;
+
+  bool get _canEdit => leave.isPending && _isOwner;
+
   bool get _canDelete =>
-      leave.isPending &&
-      (isTeacherOrAdmin ||
+      isTeacherOrAdmin ||
+      (leave.isPending &&
           (currentUserId != null && leave.submittedById == currentUserId));
+
+  bool get _showEditAction => _isOwner;
+
+  bool get _showDeleteAction => isTeacherOrAdmin || _isOwner;
 
   Color get _statusColor {
     switch (leave.status) {
@@ -501,6 +510,77 @@ class _LeaveCard extends StatelessWidget {
       default:
         return Icons.hourglass_empty_rounded;
     }
+  }
+
+  void _showActionMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppTheme.warningColor,
+      ),
+    );
+  }
+
+  Future<void> _handleEditTap(BuildContext context) async {
+    if (!_isOwner) {
+      return;
+    }
+    if (!leave.isPending) {
+      _showActionMessage(
+        context,
+        context.tRead('Reviewed requests cannot be edited.'),
+      );
+      return;
+    }
+
+    final screenContext = context;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _SubmitLeaveDialog(
+        titleText: 'Edit Leave Request',
+        submitButtonText: 'Save Changes',
+        submitIcon: Icons.save_rounded,
+        initialDate: leave.leaveDate,
+        initialReason: leave.reason,
+        onSubmit: ({required DateTime date, required String reason}) async {
+          final provider = screenContext.read<LeaveRequestProvider>();
+          final success = await provider.updateLeaveRequest(
+            leave.id,
+            leaveDate: date,
+            reason: reason,
+          );
+          if (!screenContext.mounted) {
+            return;
+          }
+          if (success) {
+            Navigator.of(screenContext).pop();
+          }
+          ScaffoldMessenger.of(screenContext).showSnackBar(
+            SnackBar(
+              content: Text(
+                success
+                    ? screenContext.tRead('Leave request updated')
+                    : (provider.error ?? screenContext.tRead('Failed to update')),
+              ),
+              backgroundColor: success
+                  ? AppTheme.successColor
+                  : AppTheme.errorColor,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleDeleteTap(BuildContext context) async {
+    if (!_canDelete) {
+      _showActionMessage(
+        context,
+        context.tRead('Reviewed requests cannot be deleted.'),
+      );
+      return;
+    }
+    await _confirmDelete(context);
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
@@ -963,59 +1043,84 @@ class _LeaveCard extends StatelessWidget {
             ],
           ),
 
-          if (_canReview || _canDelete) ...[
+          if (_canReview || _showEditAction || _showDeleteAction) ...[
             const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final useColumn = constraints.maxWidth < 420;
-
-                final reviewButton = OutlinedButton.icon(
-                  onPressed: isBusy ? null : () => _showReviewDialog(context),
-                  icon: const Icon(Icons.rate_review_rounded, size: 16),
-                  label: Text(context.t('Review Request')),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                if (_canReview)
+                  OutlinedButton.icon(
+                    onPressed: isBusy ? null : () => _showReviewDialog(context),
+                    icon: const Icon(Icons.rate_review_rounded, size: 16),
+                    label: Text(context.t('Review Request')),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
-                );
-
-                final deleteButton = OutlinedButton.icon(
-                  onPressed: isBusy ? null : () => _confirmDelete(context),
-                  icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                  label: Text(context.t('Delete')),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.errorColor,
-                    side: BorderSide(
-                      color: AppTheme.errorColor.withValues(alpha: 0.35),
+                if (_showEditAction)
+                  OutlinedButton.icon(
+                    onPressed: isBusy ? null : () => _handleEditTap(context),
+                    icon: Icon(
+                      _canEdit
+                          ? Icons.edit_outlined
+                          : Icons.lock_outline_rounded,
+                      size: 16,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                    label: Text(context.t('Edit Request')),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _canEdit
+                          ? AppTheme.primaryLight
+                          : AppTheme.textMuted,
+                      side: BorderSide(
+                        color: _canEdit
+                            ? AppTheme.primaryColor.withValues(alpha: 0.35)
+                            : AppTheme.glassBorder,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
-                );
-
-                if (useColumn) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (_canReview) reviewButton,
-                      if (_canReview && _canDelete) const SizedBox(height: 12),
-                      if (_canDelete) deleteButton,
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    if (_canReview) Expanded(child: reviewButton),
-                    if (_canReview && _canDelete) const SizedBox(width: 12),
-                    if (_canDelete) Expanded(child: deleteButton),
-                  ],
-                );
-              },
+                if (_showDeleteAction)
+                  OutlinedButton.icon(
+                    onPressed: isBusy ? null : () => _handleDeleteTap(context),
+                    icon: Icon(
+                      _canDelete
+                          ? Icons.delete_outline_rounded
+                          : Icons.lock_outline_rounded,
+                      size: 16,
+                    ),
+                    label: Text(context.t('Delete Request')),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _canDelete
+                          ? AppTheme.errorColor
+                          : AppTheme.textMuted,
+                      side: BorderSide(
+                        color: _canDelete
+                            ? AppTheme.errorColor.withValues(alpha: 0.35)
+                            : AppTheme.glassBorder,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ],
         ],
@@ -1086,8 +1191,20 @@ class _DecisionButton extends StatelessWidget {
 class _SubmitLeaveDialog extends StatefulWidget {
   final void Function({required DateTime date, required String reason})
   onSubmit;
+  final String titleText;
+  final String submitButtonText;
+  final IconData submitIcon;
+  final DateTime? initialDate;
+  final String? initialReason;
 
-  const _SubmitLeaveDialog({required this.onSubmit});
+  const _SubmitLeaveDialog({
+    required this.onSubmit,
+    this.titleText = 'Submit Leave Request',
+    this.submitButtonText = 'Submit',
+    this.submitIcon = Icons.send_rounded,
+    this.initialDate,
+    this.initialReason,
+  });
 
   @override
   State<_SubmitLeaveDialog> createState() => _SubmitLeaveDialogState();
@@ -1102,6 +1219,8 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
   @override
   void initState() {
     super.initState();
+    _selectedDate = widget.initialDate ?? DateTime.now();
+    _reasonController.text = widget.initialReason ?? '';
     _reasonController.addListener(_handleReasonChanged);
   }
 
@@ -1183,7 +1302,7 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(context.t('Submit Leave Request')),
+      title: Text(context.t(widget.titleText)),
       content: Form(
         key: _formKey,
         autovalidateMode: _attemptedSubmit
@@ -1336,7 +1455,7 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
         Consumer<LeaveRequestProvider>(
           builder: (context, provider, _) {
             return CustomButton(
-              text: 'Submit',
+              text: widget.submitButtonText,
               isLoading: provider.isLoading,
               onPressed: provider.isLoading || !_canSubmit
                   ? null
@@ -1351,7 +1470,7 @@ class _SubmitLeaveDialogState extends State<_SubmitLeaveDialog> {
                         );
                       }
                     },
-              icon: Icons.send_rounded,
+              icon: widget.submitIcon,
             );
           },
         ),

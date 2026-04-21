@@ -16,8 +16,13 @@ import '../widgets/window_title_bar.dart';
 
 class SupervisionDashboardScreen extends StatefulWidget {
   final int? initialGroupId;
+  final bool openCreateGroupOnLoad;
 
-  const SupervisionDashboardScreen({super.key, this.initialGroupId});
+  const SupervisionDashboardScreen({
+    super.key,
+    this.initialGroupId,
+    this.openCreateGroupOnLoad = false,
+  });
 
   @override
   State<SupervisionDashboardScreen> createState() =>
@@ -33,11 +38,24 @@ class _SupervisionDashboardScreenState
   void initState() {
     super.initState();
     _selectedGroupId = widget.initialGroupId;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) {
         return;
       }
-      _refresh();
+      await _refresh();
+      if (!mounted || !widget.openCreateGroupOnLoad) {
+        return;
+      }
+
+      final overview = context.read<SupervisionProvider>().overview;
+      final canCreateGroups =
+          overview?.canCreateGroups ??
+          (context.read<AuthProvider>().user?.canUseGroups == true);
+      if (canCreateGroups) {
+        await _showCreateGroupDialog();
+      } else {
+        _showCreateGroupPermissionMessage();
+      }
     });
   }
 
@@ -78,67 +96,94 @@ class _SupervisionDashboardScreenState
     final supervision = context.read<SupervisionProvider>();
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
+    var isSubmitting = false;
 
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(language.tr('createTeacherGroup')),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    labelText: language.tr('groupName'),
-                  ),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(language.tr('createTeacherGroup')),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      enabled: !isSubmitting,
+                      decoration: InputDecoration(
+                        labelText: language.tr('groupName'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      enabled: !isSubmitting,
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: InputDecoration(
+                        labelText: language.tr('groupDescription'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  minLines: 3,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    labelText: language.tr('groupDescription'),
-                  ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: Text(language.tr('cancel')),
+                ),
+                FilledButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final trimmedName = nameController.text.trim();
+                          if (trimmedName.length < 2) {
+                            _showError(
+                              language.tr(
+                                'Name must be at least 2 characters',
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => isSubmitting = true);
+                          final createdGroup = await supervision.createGroup(
+                            name: trimmedName,
+                            description: descriptionController.text,
+                          );
+                          if (!mounted || !dialogContext.mounted) {
+                            return;
+                          }
+                          if (createdGroup != null) {
+                            setState(
+                              () => _selectedGroupId = createdGroup.id,
+                            );
+                            Navigator.pop(dialogContext);
+                            _showMessage(language.tr('groupCreated'));
+                          } else {
+                            setDialogState(() => isSubmitting = false);
+                            _showError(
+                              supervision.error ??
+                                  language.tr('operationFailed'),
+                            );
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(language.tr('createGroup')),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(language.tr('cancel')),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final trimmedName = nameController.text.trim();
-                if (trimmedName.length < 2) {
-                  _showError(language.tr('Name must be at least 2 characters'));
-                  return;
-                }
-
-                final success = await supervision.createGroup(
-                  name: trimmedName,
-                  description: descriptionController.text,
-                );
-                if (!mounted || !dialogContext.mounted) {
-                  return;
-                }
-                if (success) {
-                  Navigator.pop(dialogContext);
-                  _showMessage(language.tr('groupCreated'));
-                } else {
-                  _showError(
-                    supervision.error ?? language.tr('operationFailed'),
-                  );
-                }
-              },
-              child: Text(language.tr('createGroup')),
-            ),
-          ],
+            );
+          },
         );
       },
     );

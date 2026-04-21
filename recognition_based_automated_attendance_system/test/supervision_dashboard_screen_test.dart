@@ -197,7 +197,7 @@ void main() {
 
     expect(
       find.text(
-        'Only user and admin accounts can create user groups. Ask a user or admin to create one or add you to an existing group.',
+        'Managed student accounts cannot create user groups. Ask an administrator to convert this account before using the group workspace.',
       ),
       findsWidgets,
     );
@@ -226,7 +226,7 @@ void main() {
 
       expect(
         find.text(
-          'Only user and admin accounts can create user groups. Ask a user or admin to create one or add you to an existing group.',
+          'Managed student accounts cannot create user groups. Ask an administrator to convert this account before using the group workspace.',
         ),
         findsWidgets,
       );

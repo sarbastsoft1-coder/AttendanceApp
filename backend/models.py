@@ -441,6 +441,12 @@ class LeaveRequestReview(BaseModel):
     review_note: Optional[str] = None
 
 
+class LeaveRequestUpdate(BaseModel):
+    """Requester updating a pending leave request"""
+    leave_date: datetime
+    reason: str = Field(..., min_length=5)
+
+
 class LeaveRequestResponse(BaseModel):
     """Leave request response"""
     id: int

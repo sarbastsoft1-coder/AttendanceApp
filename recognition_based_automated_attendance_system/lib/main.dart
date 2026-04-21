@@ -62,6 +62,20 @@ int? _routeIntArgument(RouteSettings settings, String key) {
   return null;
 }
 
+bool? _routeBoolArgument(RouteSettings settings, String key) {
+  final args = settings.arguments;
+  if (args is bool) {
+    return args;
+  }
+  if (args is Map) {
+    final value = args[key];
+    if (value is bool) {
+      return value;
+    }
+  }
+  return null;
+}
+
 @visibleForTesting
 final Map<String, AppRouteWidgetFactory> appRouteBuilders =
     <String, AppRouteWidgetFactory>{
@@ -94,6 +108,8 @@ final Map<String, AppRouteWidgetFactory> appRouteBuilders =
       '/admin/classes': (_) => const ClassManagementScreen(),
       '/supervision': (settings) => SupervisionDashboardScreen(
         initialGroupId: _routeIntArgument(settings, 'groupId'),
+        openCreateGroupOnLoad:
+            _routeBoolArgument(settings, 'openCreateGroupDialog') ?? false,
       ),
     };
 

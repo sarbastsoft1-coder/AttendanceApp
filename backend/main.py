@@ -35,7 +35,7 @@ from models import (
     ClassCreate, ClassUpdate, ClassResponse, StudentResponse, StudentRegistrationResponse,
     DetectedObject, ExamProctorResponse,
     ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, PasswordResetTokenResponse,
-    LeaveRequestCreate, LeaveRequestReview, LeaveRequestResponse,
+    LeaveRequestCreate, LeaveRequestReview, LeaveRequestResponse, LeaveRequestUpdate,
     SettingUpdate, SettingResponse, SettingsBulkUpdate, AppSettings,
     AuditLogResponse, PaginatedAuditLog,
     QRSessionCreate, QRSessionResponse, QRAttendanceRequest,
@@ -2981,6 +2981,44 @@ async def get_leave_requests(
     return [_leave_to_response(l) for l in leaves]
 
 
+@app.put("/api/leave/{leave_id}", response_model=LeaveRequestResponse, tags=["Leave Requests"])
+async def update_leave_request(
+    leave_id: int,
+    data: LeaveRequestUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Update a pending leave request owned by the current requester"""
+    leave = db.query(LeaveRequest).filter(LeaveRequest.id == leave_id).first()
+    if not leave:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+    if leave.submitted_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the requester can edit this leave request")
+    if leave.status != "pending":
+        raise HTTPException(status_code=400, detail="Cannot edit a reviewed leave request")
+
+    leave.leave_date = data.leave_date
+    leave.reason = data.reason
+    leave.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(leave)
+
+    _write_audit(
+        db,
+        current_user.id,
+        "update_leave",
+        "LeaveRequest",
+        leave_id,
+        f"Updated leave request {leave_id}",
+        request.client.host if request.client else None,
+    )
+    db.commit()
+
+    return _leave_to_response(leave)
+
+
 @app.patch("/api/leave/{leave_id}", response_model=LeaveRequestResponse, tags=["Leave Requests"])
 async def review_leave_request(
     leave_id: int,
@@ -3050,13 +3088,14 @@ async def delete_leave_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Delete a pending leave request"""
+    """Delete a leave request"""
     leave = db.query(LeaveRequest).filter(LeaveRequest.id == leave_id).first()
     if not leave:
         raise HTTPException(status_code=404, detail="Leave request not found")
-    if leave.submitted_by_id != current_user.id and not _can_review_leave_requests(current_user):
+    can_review = _can_review_leave_requests(current_user)
+    if leave.submitted_by_id != current_user.id and not can_review:
         raise HTTPException(status_code=403, detail="Not authorized")
-    if leave.status != "pending":
+    if leave.status != "pending" and not can_review:
         raise HTTPException(status_code=400, detail="Cannot delete a reviewed leave request")
 
     db.delete(leave)
