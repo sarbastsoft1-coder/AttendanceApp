@@ -88,8 +88,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
 
       await _cameraController!.initialize();
 
-      if (PlatformUtils.isNativeDesktop &&
-          frontCamera.sensorOrientation == 0) {
+      if (PlatformUtils.isNativeDesktop && frontCamera.sensorOrientation == 0) {
         _previewQuarterTurns = 2;
       }
 
@@ -185,7 +184,10 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
           backgroundColor: AppTheme.successColor,
         ),
       );
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(
+        context,
+        authProvider.user?.isStudent == true ? '/student-dashboard' : '/home',
+      );
     } else {
       _showError(authProvider.error ?? 'Failed to register face');
     }
@@ -217,7 +219,13 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
           TextButton(
             onPressed: () {
               // Skip for now
-              Navigator.pushReplacementNamed(context, '/home');
+              final authProvider = context.read<AuthProvider>();
+              Navigator.pushReplacementNamed(
+                context,
+                authProvider.user?.isStudent == true
+                    ? '/student-dashboard'
+                    : '/home',
+              );
             },
             child: Text(t('Skip')),
           ),

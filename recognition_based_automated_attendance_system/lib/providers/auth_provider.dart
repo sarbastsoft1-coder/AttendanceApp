@@ -54,6 +54,9 @@ class AuthProvider with ChangeNotifier {
     required String password,
     String? phone,
     String? department,
+    String role = 'teacher',
+    String? adminAccessKey,
+    bool persistSession = true,
   }) async {
     _setLoading(true);
     _error = null;
@@ -67,16 +70,22 @@ class AuthProvider with ChangeNotifier {
           'password': password,
           'phone': phone,
           'department': department,
+          'role': role,
+          if (adminAccessKey != null && adminAccessKey.trim().isNotEmpty)
+            'admin_access_key': adminAccessKey.trim(),
         },
       );
 
       final data = response.data;
-      _user = User.fromJson(data['user']);
+      final createdUser = User.fromJson(data['user']);
       final token = data['token']['access_token'];
 
-      await _storage.saveToken(token);
-      await _storage.saveUser(_user!);
-      _api.setAuthToken(token);
+      if (persistSession) {
+        _user = createdUser;
+        await _storage.saveToken(token);
+        await _storage.saveUser(_user!);
+        _api.setAuthToken(token);
+      }
 
       _setLoading(false);
       return true;
@@ -120,6 +129,40 @@ class AuthProvider with ChangeNotifier {
         await _storage.saveRememberMe(true);
         await _storage.saveLastEmail(email);
       }
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  /// Login a managed student by scanning their registered class face.
+  Future<bool> loginWithStudentFace(CapturedImage image) async {
+    _setLoading(true);
+    _error = null;
+
+    try {
+      final multipartFile = MultipartFile.fromBytes(
+        image.bytes,
+        filename: image.filename,
+      );
+
+      final response = await _api.uploadSingleFile(
+        ApiConfig.studentFaceLogin,
+        file: multipartFile,
+        fieldName: 'image',
+      );
+
+      final data = response.data;
+      _user = User.fromJson(data['user']);
+      final token = data['token']['access_token'];
+
+      await _storage.saveToken(token);
+      await _storage.saveUser(_user!);
+      _api.setAuthToken(token);
 
       _setLoading(false);
       return true;

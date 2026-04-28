@@ -58,7 +58,7 @@ class User {
 
   bool get isAdmin => role == 'admin' || role == 'super_admin';
   bool get isTeacher => role == 'teacher' || role == 'super_teacher';
-  bool get isStudent => role == 'student';
+  bool get isStudent => role == 'student' || role == 'managed_student';
   bool get isManagedStudent => role == 'managed_student';
   bool get isSuperAdmin => role == 'super_admin';
   bool get isSuperTeacher => role == 'super_teacher';

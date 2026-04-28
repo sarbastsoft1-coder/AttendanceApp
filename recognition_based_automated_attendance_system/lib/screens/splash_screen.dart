@@ -98,12 +98,15 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (authProvider.isAuthenticated) {
       if (authProvider.hasRegisteredFace) {
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(
+          context,
+          authProvider.user?.isStudent == true ? '/student-dashboard' : '/home',
+        );
       } else {
         Navigator.pushReplacementNamed(context, '/face-capture');
       }
     } else {
-      Navigator.pushReplacementNamed(context, '/login');
+      Navigator.pushReplacementNamed(context, '/gov-login-intro');
     }
   }
 

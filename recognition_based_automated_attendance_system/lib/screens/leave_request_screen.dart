@@ -27,8 +27,8 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen>
   @override
   void initState() {
     super.initState();
-    final isTeacherOrAdmin =
-        context.read<AuthProvider>().user?.role != 'student';
+    final user = context.read<AuthProvider>().user;
+    final isTeacherOrAdmin = user?.isStudent != true;
     _tabController = TabController(
       length: isTeacherOrAdmin ? 3 : 2,
       vsync: this,
@@ -87,7 +87,7 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen>
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
-    final isTeacherOrAdmin = user?.role == 'teacher' || user?.role == 'admin';
+    final isTeacherOrAdmin = user?.isTeacher == true || user?.isAdmin == true;
 
     return Scaffold(
       appBar: AppBar(

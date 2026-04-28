@@ -312,6 +312,37 @@ def _can_edit_class(db: Session, user: User, class_obj: Class) -> bool:
     return _is_admin_role(user) or class_obj.teacher_id == user.id
 
 
+def _attendance_session_query(
+    db: Session,
+    *,
+    target_date: date,
+    class_id: Optional[int],
+):
+    query = db.query(Attendance).filter(func.date(Attendance.date) == target_date)
+    if class_id is None:
+        return query.filter(Attendance.class_id.is_(None))
+    return query.filter(Attendance.class_id == class_id)
+
+
+def _find_existing_attendance_for_session(
+    db: Session,
+    *,
+    user_id: int,
+    target_date: date,
+    class_id: Optional[int],
+) -> Optional[Attendance]:
+    return (
+        _attendance_session_query(
+            db,
+            target_date=target_date,
+            class_id=class_id,
+        )
+        .filter(Attendance.user_id == user_id)
+        .order_by(Attendance.id.desc())
+        .first()
+    )
+
+
 def _group_member_to_response(member: TeacherGroupMember) -> TeacherGroupMemberResponse:
     return TeacherGroupMemberResponse(
         id=member.id,
@@ -664,6 +695,64 @@ def _parse_face_encoding(raw_encoding: Optional[str]) -> Optional[List[float]]:
         return None
 
 
+def _is_student_role(user: User) -> bool:
+    return user.role in {"student", "managed_student"}
+
+
+def _matching_students_for_encoding(db: Session, source_encoding: List[float]) -> List[Student]:
+    """Find roster students whose stored face matches the source encoding."""
+    confidence_threshold = 1.0 - face_service.tolerance
+    matches = []
+
+    students = db.query(Student).filter(Student.has_registered_face == True).all()
+    for student in students:
+        encoding = _parse_face_encoding(student.face_encoding)
+        if not encoding:
+            continue
+
+        is_match, confidence = face_service.compare_faces(encoding, source_encoding)
+        if is_match and confidence >= confidence_threshold:
+            matches.append(student)
+
+    return matches
+
+
+def _student_attendance_scope_for_user(db: Session, user: User):
+    """Return user/student ids that belong to the same recognized student face."""
+    user_ids = {user.id}
+    student_ids = set()
+    source_encodings = []
+
+    user_encoding = _parse_face_encoding(user.face_encoding)
+    if user_encoding:
+        source_encodings.append(user_encoding)
+
+    linked_students = db.query(Student).filter(Student.linked_user_id == user.id).all()
+    for student in linked_students:
+        student_ids.add(student.id)
+        encoding = _parse_face_encoding(student.face_encoding)
+        if encoding:
+            source_encodings.append(encoding)
+
+    for source_encoding in source_encodings:
+        for student in _matching_students_for_encoding(db, source_encoding):
+            student_ids.add(student.id)
+            if student.linked_user_id:
+                user_ids.add(student.linked_user_id)
+
+    return user_ids, student_ids
+
+
+def _apply_student_attendance_scope(query, db: Session, user: User):
+    user_ids, student_ids = _student_attendance_scope_for_user(db, user)
+    filters = []
+    if user_ids:
+        filters.append(Attendance.user_id.in_(list(user_ids)))
+    if student_ids:
+        filters.append(Attendance.student_id.in_(list(student_ids)))
+    return query.filter(or_(*filters)) if filters else query.filter(Attendance.user_id == user.id)
+
+
 def _student_to_user_response(student: Student, class_name: Optional[str]) -> UserResponse:
     """Map Student model to UserResponse-compatible payload."""
     return UserResponse(
@@ -814,6 +903,9 @@ def _ensure_student_linked_user(db: Session, student: Student, class_obj: Option
     managed_user.full_name = student.name
     managed_user.department = class_obj.name if class_obj else managed_user.department
     managed_user.role = "managed_student"
+    managed_user.face_encoding = student.face_encoding
+    managed_user.face_image_path = student.face_image_path
+    managed_user.has_registered_face = student.has_registered_face
     managed_user.is_active = True
     managed_user.is_verified = True
     student.linked_user_id = managed_user.id
@@ -934,14 +1026,37 @@ async def register(user_data: UserCreate, request: Request, db: Session = Depend
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
     verification_token = secrets.token_hex(32)
+    admin_access_key_hash = None
+    if user_data.role == "admin":
+        existing_admin = (
+            db.query(User)
+            .filter(User.role.in_(tuple(ADMIN_ROLES)))
+            .first()
+        )
+        if existing_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Initial admin setup has already been completed",
+            )
+
+        normalized_key = (user_data.admin_access_key or "").strip()
+        if len(normalized_key) < 4:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Admin accounts must include an admin access key",
+            )
+
+        admin_access_key_hash = get_password_hash(normalized_key)
+
     new_user = User(
         email=user_data.email,
         full_name=user_data.full_name,
         hashed_password=get_password_hash(user_data.password),
         phone=user_data.phone,
         department=user_data.department,
-        role="teacher",
+        role=user_data.role,
         verification_token=verification_token,
+        admin_access_key_hash=admin_access_key_hash,
     )
     db.add(new_user)
     db.commit()
@@ -993,6 +1108,60 @@ async def login_json(user_data: UserLogin, db: Session = Depends(get_db)):
     return UserWithToken(
         user=UserResponse.model_validate(user),
         token=Token(access_token=access_token)
+    )
+
+
+@app.post("/api/auth/student-face-login", response_model=UserWithToken, tags=["Authentication"])
+async def student_face_login(
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Sign in a roster student by face and return the linked student account."""
+    image_bytes = await image.read()
+
+    success, rgb_img, message = await asyncio.to_thread(face_service.detect_face, image_bytes)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+
+    unknown_encoding = await asyncio.to_thread(face_service.encode_face, rgb_img)
+    if unknown_encoding is None:
+        raise HTTPException(status_code=400, detail="Could not encode face")
+
+    students_with_faces = db.query(Student).filter(Student.has_registered_face == True).all()
+    known_encodings = []
+    for student in students_with_faces:
+        encoding = _parse_face_encoding(student.face_encoding)
+        if encoding:
+            known_encodings.append((student.id, student.name, encoding))
+
+    if not known_encodings:
+        raise HTTPException(status_code=400, detail="No registered student faces in the system")
+
+    student_id, _, confidence = await asyncio.to_thread(
+        face_service.find_best_match, known_encodings, unknown_encoding
+    )
+
+    if student_id is None or confidence < 0.4:
+        raise HTTPException(
+            status_code=400,
+            detail="Student face not recognized. Please try again or ask your teacher to register your face.",
+        )
+
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    class_obj = db.query(Class).filter(Class.id == student.class_id).first()
+    managed_user = _ensure_student_linked_user(db, student, class_obj)
+    db.commit()
+    db.refresh(managed_user)
+
+    access_token = create_access_token(
+        data={"sub": managed_user.email, "user_id": managed_user.id}
+    )
+    return UserWithToken(
+        user=UserResponse.model_validate(managed_user),
+        token=Token(access_token=access_token),
     )
 
 
@@ -1524,10 +1693,12 @@ async def manual_attendance(
     attendance_date = data.attendance_date or datetime.now()
     target_date = attendance_date.date()
 
-    existing = db.query(Attendance).filter(
-        Attendance.user_id == resolved_user_id,
-        func.date(Attendance.date) == target_date
-    ).first()
+    existing = _find_existing_attendance_for_session(
+        db,
+        user_id=resolved_user_id,
+        target_date=target_date,
+        class_id=resolved_class_id,
+    )
 
     if existing:
         # Update status instead of creating duplicate
@@ -1622,10 +1793,12 @@ async def submit_roll_call(
             skipped += 1
             continue
 
-        existing = db.query(Attendance).filter(
-            Attendance.user_id == resolved_user_id,
-            func.date(Attendance.date) == target_date
-        ).first()
+        existing = _find_existing_attendance_for_session(
+            db,
+            user_id=resolved_user_id,
+            target_date=target_date,
+            class_id=resolved_class_id,
+        )
 
         if existing:
             existing.status = entry.status
@@ -1703,6 +1876,8 @@ async def get_attendance_history(
             query = query.filter(Attendance.user_id == current_user.id)
         if user_id:
             query = query.filter(Attendance.user_id == user_id)
+    elif _is_student_role(current_user):
+        query = _apply_student_attendance_scope(query, db, current_user)
     elif not _is_admin_role(current_user):
         query = query.filter(Attendance.user_id == current_user.id)
     elif user_id:
@@ -1744,7 +1919,11 @@ async def get_attendance_stats(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     settings = _get_settings(db)
-    query = db.query(Attendance).filter(Attendance.user_id == user_id)
+    query = db.query(Attendance)
+    if _is_student_role(current_user) and current_user.id == user_id:
+        query = _apply_student_attendance_scope(query, db, current_user)
+    else:
+        query = query.filter(Attendance.user_id == user_id)
 
     if month and year:
         start_dt = datetime(year, month, 1)
@@ -1941,7 +2120,8 @@ async def room_scan(
         if managed_students:
             existing_records = db.query(Attendance).filter(
                 Attendance.user_id.in_([managed_user.id for _, managed_user in managed_students]),
-                func.date(Attendance.date) == target_date
+                func.date(Attendance.date) == target_date,
+                Attendance.class_id == class_obj.id,
             ).all()
             existing_by_user_id = {record.user_id: record for record in existing_records}
 
@@ -2202,13 +2382,18 @@ async def scan_qr_attendance(
     user_id = current_user.id
 
     today = date.today()
-    existing = db.query(Attendance).filter(
-        Attendance.user_id == user_id,
-        func.date(Attendance.date) == today
-    ).first()
+    existing = _find_existing_attendance_for_session(
+        db,
+        user_id=user_id,
+        target_date=today,
+        class_id=session.class_id,
+    )
 
     if existing:
-        raise HTTPException(status_code=400, detail="Attendance already marked today")
+        raise HTTPException(
+            status_code=400,
+            detail="Attendance already marked for this class today",
+        )
 
     current_time = datetime.now()
     late_threshold = current_time.replace(
@@ -2220,6 +2405,7 @@ async def scan_qr_attendance(
 
     attendance = Attendance(
         user_id=user_id,
+        class_id=session.class_id,
         date=current_time,
         check_in_time=current_time,
         method="qr_code",

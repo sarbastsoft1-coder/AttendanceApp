@@ -1,16 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
 
 import '../config/api_config.dart';
 import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
-import '../models/captured_image.dart';
 import '../providers/student_management_provider.dart';
 import '../services/api_service.dart';
 import '../utils/camera_selector.dart';

@@ -78,6 +78,28 @@ class ArabicLocalization {
         'يتم إنشاء حسابات المشرف من قبل المسؤولين',
     'Admin sign-in requires an access key':
         'يتطلب تسجيل دخول المسؤول مفتاح وصول',
+    'Sign in to your government account': 'سجّل الدخول إلى حسابك الحكومي',
+    'Enter your government email and password to continue':
+        'أدخل بريدك الإلكتروني الحكومي وكلمة المرور للمتابعة',
+    'Continue to Sign In': 'المتابعة إلى تسجيل الدخول',
+    'Government sign-in required': 'مطلوب تسجيل الدخول الحكومي',
+    'Use your official government email and password to access the attendance system.':
+        'استخدم بريدك الإلكتروني الحكومي الرسمي وكلمة المرور للوصول إلى نظام الحضور.',
+    'Before you continue': 'قبل المتابعة',
+    'Have your government email ready': 'جهّز بريدك الإلكتروني الحكومي',
+    'Enter your password on the next screen':
+        'أدخل كلمة المرور في الشاشة التالية',
+    'Continue to the secure sign-in form': 'تابع إلى نموذج تسجيل الدخول الآمن',
+    'Government Attendance Access': 'الوصول الحكومي إلى نظام الحضور',
+    'Protected sign-in experience': 'تجربة تسجيل دخول محمية',
+    'Review the access requirements before opening the sign-in form':
+        'راجع متطلبات الوصول قبل فتح نموذج تسجيل الدخول.',
+    'Government account access': 'الوصول إلى الحساب الحكومي',
+    'Use the official credentials assigned to your organization':
+        'استخدم بيانات الاعتماد الرسمية المخصصة لجهتك.',
+    'Continue securely': 'تابع بأمان',
+    'Move to the existing login page when you are ready to sign in':
+        'انتقل إلى صفحة تسجيل الدخول الحالية عندما تكون جاهزاً لتسجيل الدخول.',
     'Alert': 'يُحذًِر',
     'All Classes': 'جميع الفصول',
     'All Dates': 'جميع التواريخ',

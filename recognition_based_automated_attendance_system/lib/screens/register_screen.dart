@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -6,7 +8,7 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../localization/localization_extensions.dart';
 import '../providers/auth_provider.dart';
-import '../providers/supervision_provider.dart';
+import 'government_account_success_screen.dart';
 import '../utils/input_validators.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_textfield.dart';
@@ -14,9 +16,13 @@ import '../widgets/language_selector.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/window_title_bar.dart';
 
+enum _RegisterAccountType { teacher, student, admin }
+
 /// Premium Split-Panel Registration Screen
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final bool governmentOnly;
+
+  const RegisterScreen({super.key, this.governmentOnly = false});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -30,6 +36,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _departmentController = TextEditingController();
+  _RegisterAccountType _selectedAccountType = _RegisterAccountType.teacher;
+  bool _didLoadRouteArguments = false;
+  bool _governmentOnly = false;
+
+  void _openGovernmentEntry() {
+    Navigator.pushReplacementNamed(
+      context,
+      _governmentOnly ? '/gov-account-gateway' : '/gov-login-intro',
+      arguments: _governmentOnly ? const {'mode': 'create'} : null,
+    );
+  }
+
+  void _openLogin() {
+    final destination = _governmentOnly
+        ? 'admin'
+        : switch (_selectedAccountType) {
+            _RegisterAccountType.admin => 'admin',
+            _RegisterAccountType.student => 'student',
+            _RegisterAccountType.teacher => 'teacher',
+          };
+
+    Navigator.pushReplacementNamed(
+      context,
+      '/login',
+      arguments: {'destination': destination},
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didLoadRouteArguments) {
+      return;
+    }
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    _governmentOnly = widget.governmentOnly;
+    if (args is Map) {
+      final governmentOnly = args['governmentOnly'];
+      if (governmentOnly is bool) {
+        _governmentOnly = widget.governmentOnly || governmentOnly;
+      }
+
+      if (_governmentOnly) {
+        _selectedAccountType = _RegisterAccountType.admin;
+      } else if (args['accountType'] == 'admin') {
+        _selectedAccountType = _RegisterAccountType.admin;
+      } else if (args['accountType'] == 'student') {
+        _selectedAccountType = _RegisterAccountType.student;
+      }
+    }
+
+    _didLoadRouteArguments = true;
+  }
 
   @override
   void dispose() {
@@ -42,25 +102,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  Future<bool> _shouldOpenPendingInvitations() async {
-    final authProvider = context.read<AuthProvider>();
-    final user = authProvider.user;
-    if (user?.isTeacher != true) {
-      return false;
-    }
+  String _generateAdminAccessKey() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final random = Random.secure();
 
-    final supervision = context.read<SupervisionProvider>();
-    try {
-      await supervision.fetchOverview();
-    } catch (_) {
-      return false;
-    }
+    String segment(int length) => List.generate(
+      length,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
 
-    if (!mounted) {
-      return false;
-    }
-
-    return supervision.overview?.pendingInvitations.isNotEmpty == true;
+    return 'ADM-${segment(4)}-${segment(4)}-${segment(4)}-${segment(4)}';
   }
 
   Widget _buildAdminAccessNotice() {
@@ -119,12 +170,292 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  Widget _buildStudentAccessNotice() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.glassBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.school_outlined,
+              color: AppTheme.primaryLight,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.t('Student accounts see student attendance only'),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  context.t(
+                    'Student users can review absent classes and student attendance records after signing in.',
+                  ),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedAccountNotice() {
+    if (_governmentOnly) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.glassBorder),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.account_balance_rounded,
+                color: AppTheme.primaryLight,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.t('Government account access'),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    context.t(
+                      'Use your government email and password to create the first admin account. The admin access key will be generated automatically and shown on the next page.',
+                    ),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    switch (_selectedAccountType) {
+      case _RegisterAccountType.student:
+        return _buildStudentAccessNotice();
+      case _RegisterAccountType.admin:
+        return _buildAdminAccessNotice();
+      case _RegisterAccountType.teacher:
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.bgCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.glassBorder),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.badge_outlined,
+                  color: AppTheme.primaryLight,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.t('Teacher accounts manage attendance'),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      context.t(
+                        'Teacher users can sign in, register faces, and manage attendance features.',
+                      ),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+    }
+  }
+
+  Widget _buildAccountTypeSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.t('Account Type'),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          context.t(
+            'Choose whether you are registering as a teacher or student',
+          ),
+          style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        ),
+        const SizedBox(height: 14),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 720;
+            final cardWidth = isWide
+                ? (constraints.maxWidth - 24) / 3
+                : (constraints.maxWidth - 12) / 2;
+
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: cardWidth,
+                  child: _RegisterAccountTypeCard(
+                    title: context.t('Teacher Account'),
+                    subtitle: context.t(
+                      'Create a teacher account with full attendance access',
+                    ),
+                    icon: Icons.badge_outlined,
+                    selected:
+                        _selectedAccountType == _RegisterAccountType.teacher,
+                    onTap: () {
+                      setState(
+                        () =>
+                            _selectedAccountType = _RegisterAccountType.teacher,
+                      );
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _RegisterAccountTypeCard(
+                    title: context.t('Student Account'),
+                    subtitle: context.t(
+                      'Create a student account with absent classes only',
+                    ),
+                    icon: Icons.school_outlined,
+                    selected:
+                        _selectedAccountType == _RegisterAccountType.student,
+                    onTap: () {
+                      setState(
+                        () =>
+                            _selectedAccountType = _RegisterAccountType.student,
+                      );
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _RegisterAccountTypeCard(
+                    title: context.t('Admin Account'),
+                    subtitle: context.t(
+                      'Admins sign in with admin access and are not created publicly',
+                    ),
+                    icon: Icons.admin_panel_settings_outlined,
+                    selected:
+                        _selectedAccountType == _RegisterAccountType.admin,
+                    onTap: () {
+                      setState(
+                        () => _selectedAccountType = _RegisterAccountType.admin,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   Future<void> _register() async {
     FocusScope.of(context).unfocus();
+    ScaffoldMessenger.of(context).clearSnackBars();
+    if (_selectedAccountType == _RegisterAccountType.admin &&
+        !_governmentOnly) {
+      Navigator.pushReplacementNamed(
+        context,
+        '/login',
+        arguments: const {'destination': 'admin'},
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     TextInput.finishAutofillContext();
 
     final authProvider = context.read<AuthProvider>();
+    final generatedAdminAccessKey = _governmentOnly
+        ? _generateAdminAccessKey()
+        : null;
     final success = await authProvider.register(
       email: _emailController.text.trim(),
       fullName: _nameController.text.trim(),
@@ -135,26 +466,54 @@ class _RegisterScreenState extends State<RegisterScreen> {
       department: _departmentController.text.trim().isEmpty
           ? null
           : _departmentController.text.trim(),
+      role: _governmentOnly
+          ? 'admin'
+          : _selectedAccountType == _RegisterAccountType.student
+          ? 'student'
+          : 'teacher',
+      adminAccessKey: generatedAdminAccessKey,
+      persistSession: false,
     );
 
     if (!mounted) return;
 
     if (success) {
-      final shouldOpenInvitations = await _shouldOpenPendingInvitations();
-      if (!mounted) return;
+      final destination = switch (_selectedAccountType) {
+        _RegisterAccountType.admin => 'admin',
+        _RegisterAccountType.student => 'student',
+        _RegisterAccountType.teacher => 'teacher',
+      };
+      final loginEmail = _emailController.text.trim();
+      final loginPassword = _passwordController.text;
 
-      if (shouldOpenInvitations) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.tr('pendingInvitationReviewPrompt')),
-            backgroundColor: AppTheme.infoColor,
+      if (_governmentOnly) {
+        final accountName = _nameController.text.trim().isNotEmpty
+            ? _nameController.text.trim()
+            : loginEmail.split('@').first;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => GovernmentAccountSuccessScreen(
+              accountName: accountName,
+              email: loginEmail,
+              password: loginPassword,
+              adminAccessKey: generatedAdminAccessKey,
+            ),
           ),
         );
-        Navigator.pushReplacementNamed(context, '/supervision');
         return;
       }
 
-      Navigator.pushReplacementNamed(context, '/face-capture');
+      Navigator.pushReplacementNamed(
+        context,
+        '/login',
+        arguments: {
+          'destination': destination,
+          'email': loginEmail,
+          'password': loginPassword,
+          'message':
+              'Account created. Sign in with the same email and password.',
+        },
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -228,10 +587,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 children: [
                   AppBar(
-                    title: Text(t('Create Account')),
+                    title: Text(
+                      _governmentOnly
+                          ? t('Create Government Account')
+                          : t('Create Account'),
+                    ),
                     leading: IconButton(
                       icon: const Icon(Icons.arrow_back_rounded),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _openGovernmentEntry,
                     ),
                     backgroundColor: Colors.transparent,
                     elevation: 0,
@@ -258,7 +621,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final createPasswordHint = t('Create a password');
     final confirmPasswordLabel = t('Confirm Password');
     final confirmPasswordHint = t('Confirm your password');
-    final createAccountLabel = t('Create Account');
+    final showRegistrationFields =
+        _governmentOnly || _selectedAccountType != _RegisterAccountType.admin;
+    final createAccountLabel = _governmentOnly
+        ? t('Create Government Account')
+        : _selectedAccountType == _RegisterAccountType.admin
+        ? t('Go to Admin Sign In')
+        : t('Create Account');
+    final headerTitle = _governmentOnly
+        ? t('Create Government Account')
+        : t('Create Account');
+    final headerSubtitle = _governmentOnly
+        ? t('Set up your government account')
+        : t('Set up your account');
     final useDesktopLayout = ResponsiveLayout.isDesktop(context);
 
     return AutofillGroup(
@@ -282,14 +657,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Icons.arrow_back_rounded,
                       color: AppTheme.textSecondary,
                     ),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _openGovernmentEntry,
                   ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        t('Create Account'),
+                        headerTitle,
                         style: TextStyle(
                           fontSize: useDesktopLayout ? 30 : 26,
                           fontWeight: FontWeight.bold,
@@ -299,7 +674,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        t('Set up your account'),
+                        headerSubtitle,
                         style: TextStyle(
                           fontSize: 14,
                           color: AppTheme.textSecondary,
@@ -311,14 +686,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ],
             ).animate().fadeIn(delay: 100.ms),
             const SizedBox(height: 20),
-            _buildAdminAccessNotice()
+            _buildSelectedAccountNotice()
                 .animate()
                 .fadeIn(delay: 150.ms)
                 .slideY(begin: 0.04, end: 0),
+            if (!_governmentOnly) ...[
+              const SizedBox(height: 20),
+              _buildAccountTypeSelector()
+                  .animate()
+                  .fadeIn(delay: 180.ms)
+                  .slideY(begin: 0.04, end: 0),
+            ],
             const SizedBox(height: 32),
 
             // Name + Email row (desktop) or stacked (mobile)
-            if (useDesktopLayout) ...[
+            if (showRegistrationFields && useDesktopLayout) ...[
               Row(
                 children: [
                   Expanded(
@@ -450,7 +832,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ],
               ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.05, end: 0),
-            ] else ...[
+            ] else if (showRegistrationFields) ...[
               // Mobile stacked layout
               CustomTextField(
                 label: fullNameLabel,
@@ -558,30 +940,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
               ),
             ],
-            const SizedBox(height: 28),
+            if (showRegistrationFields)
+              const SizedBox(height: 28)
+            else
+              const SizedBox(height: 12),
 
             // Register Button
             Consumer<AuthProvider>(
               builder: (context, auth, child) {
                 return CustomButton(
                   text: createAccountLabel,
-                  isLoading: auth.isLoading,
+                  isLoading: !showRegistrationFields ? false : auth.isLoading,
                   onPressed: _register,
-                  icon: Icons.person_add_rounded,
+                  icon: !showRegistrationFields
+                      ? Icons.admin_panel_settings_outlined
+                      : Icons.person_add_rounded,
                   useGradient: true,
                 );
               },
             ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.05, end: 0),
-            const SizedBox(height: 12),
-            TextButton.icon(
-              onPressed: () => Navigator.pushReplacementNamed(
-                context,
-                '/login',
-                arguments: const {'destination': 'admin'},
-              ),
-              icon: const Icon(Icons.admin_panel_settings_outlined),
-              label: Text(context.t('Admin Sign In')),
-            ).animate().fadeIn(delay: 550.ms),
+            if (!_governmentOnly) ...[
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/login',
+                  arguments: const {'destination': 'admin'},
+                ),
+                icon: const Icon(Icons.admin_panel_settings_outlined),
+                label: Text(context.t('Admin Sign In')),
+              ).animate().fadeIn(delay: 550.ms),
+            ],
             const SizedBox(height: 24),
 
             // Login Link
@@ -589,15 +978,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  '${t('Already have an account?')} ',
+                  _governmentOnly
+                      ? '${t('Already have a government account?')} '
+                      : '${t('Already have an account?')} ',
                   style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                 ),
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: _openLogin,
                     child: Text(
-                      language.tr('signIn'),
+                      _governmentOnly
+                          ? t('Login with Government Email')
+                          : language.tr('signIn'),
                       style: TextStyle(
                         color: AppTheme.primaryLight,
                         fontWeight: FontWeight.bold,
@@ -616,6 +1009,93 @@ class _RegisterScreenState extends State<RegisterScreen> {
 }
 
 // ─── Registration Branding Panel ────────────────────────────
+class _RegisterAccountTypeCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RegisterAccountTypeCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: AppTheme.animFast,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.bgCard : AppTheme.bgElevated,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? AppTheme.primaryColor : AppTheme.glassBorder,
+              width: selected ? 1.4 : 0.8,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.14),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedContainer(
+                duration: AppTheme.animFast,
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: selected
+                      ? AppTheme.primaryGradient
+                      : AppTheme.surfaceGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: selected
+                      ? AppTheme.textPrimary
+                      : AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _RegisterBrandingPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

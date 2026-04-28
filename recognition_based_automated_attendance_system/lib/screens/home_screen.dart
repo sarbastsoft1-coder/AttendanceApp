@@ -39,9 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _loadData();
+      if (!mounted) {
+        return;
       }
+      final user = context.read<AuthProvider>().user;
+      if (user?.isStudent == true) {
+        Navigator.pushReplacementNamed(context, '/student-dashboard');
+        return;
+      }
+      _loadData();
     });
   }
 

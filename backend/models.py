@@ -37,6 +37,8 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
     phone: Optional[str] = None
     department: Optional[str] = None
+    role: str = Field(default="teacher", pattern="^(teacher|student|admin)$")
+    admin_access_key: Optional[str] = Field(default=None, min_length=4)
 
 
 class ManagedUserCreate(UserCreate):

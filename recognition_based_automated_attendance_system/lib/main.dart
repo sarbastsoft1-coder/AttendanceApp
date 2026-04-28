@@ -15,10 +15,15 @@ import 'providers/leave_request_provider.dart';
 import 'providers/notification_provider.dart';
 import 'services/storage_service.dart';
 import 'screens/splash_screen.dart';
+import 'screens/government_login_intro_screen.dart';
+import 'screens/government_account_gateway_screen.dart';
+import 'screens/government_account_success_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/face_capture_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/student_face_scan_screen.dart';
+import 'screens/student_dashboard_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/profile_screen.dart';
@@ -76,14 +81,42 @@ bool? _routeBoolArgument(RouteSettings settings, String key) {
   return null;
 }
 
+String? _routeStringArgument(RouteSettings settings, String key) {
+  final args = settings.arguments;
+  if (args is String) {
+    return args;
+  }
+  if (args is Map) {
+    final value = args[key];
+    if (value is String) {
+      return value;
+    }
+  }
+  return null;
+}
+
 @visibleForTesting
 final Map<String, AppRouteWidgetFactory> appRouteBuilders =
     <String, AppRouteWidgetFactory>{
       '/': (_) => const SplashScreen(),
+      '/gov-login-intro': (_) => const GovernmentLoginIntroScreen(),
+      '/gov-account-gateway': (settings) => GovernmentAccountGatewayScreen(
+        initialMode: _routeStringArgument(settings, 'mode'),
+      ),
+      '/gov-account-success': (settings) => GovernmentAccountSuccessScreen(
+        accountName: _routeStringArgument(settings, 'accountName'),
+        email: _routeStringArgument(settings, 'email'),
+        password: _routeStringArgument(settings, 'password'),
+        adminAccessKey: _routeStringArgument(settings, 'adminAccessKey'),
+      ),
+      '/gov-login': (_) => const LoginScreen(governmentOnly: true),
+      '/gov-register': (_) => const RegisterScreen(governmentOnly: true),
       '/login': (_) => const LoginScreen(),
       '/register': (_) => const RegisterScreen(),
       '/face-capture': (_) => const FaceCaptureScreen(),
+      '/student-face-scan': (_) => const StudentFaceScanScreen(),
       '/home': (_) => const HomeScreen(),
+      '/student-dashboard': (_) => const StudentDashboardScreen(),
       '/attendance': (_) => const AttendanceScreen(),
       '/history': (_) => const HistoryScreen(),
       '/profile': (_) => const ProfileScreen(),

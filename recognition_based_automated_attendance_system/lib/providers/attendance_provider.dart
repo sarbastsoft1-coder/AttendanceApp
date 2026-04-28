@@ -152,6 +152,7 @@ class AttendanceProvider with ChangeNotifier {
     int page = 1,
     bool append = false,
   }) async {
+    _error = null;
     _setLoading(true);
 
     try {
@@ -211,6 +212,39 @@ class AttendanceProvider with ChangeNotifier {
       page: _historyPage + 1,
       append: true,
     );
+  }
+
+  /// Fetch every available history page for a filtered query.
+  Future<void> fetchCompleteHistory({
+    DateTime? startDate,
+    DateTime? endDate,
+    int? userId,
+    String? statusFilter,
+  }) async {
+    await fetchHistory(
+      startDate: startDate,
+      endDate: endDate,
+      userId: userId,
+      statusFilter: statusFilter,
+    );
+
+    if (_error != null) {
+      return;
+    }
+
+    while (hasMoreHistory) {
+      await fetchHistory(
+        startDate: startDate,
+        endDate: endDate,
+        userId: userId,
+        statusFilter: statusFilter,
+        page: _historyPage + 1,
+        append: true,
+      );
+      if (_error != null) {
+        return;
+      }
+    }
   }
 
   /// Fetch attendance statistics

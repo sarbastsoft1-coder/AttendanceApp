@@ -15,11 +15,13 @@ import '../widgets/language_selector.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/window_title_bar.dart';
 
-enum _LoginDestination { main, admin }
+enum _LoginDestination { main, student, admin }
 
 /// Premium Split-Panel Login Screen for Windows Desktop
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool governmentOnly;
+
+  const LoginScreen({super.key, this.governmentOnly = false});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -32,6 +34,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _adminAccessKeyController = TextEditingController();
   bool _rememberMe = false;
   bool _didLoadRouteArguments = false;
+  bool _didShowRouteMessage = false;
+  bool _governmentOnly = false;
   String? _redirectRoute;
   Object? _redirectArguments;
   _LoginDestination _selectedDestination = _LoginDestination.main;
@@ -50,7 +54,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     final args = ModalRoute.of(context)?.settings.arguments;
+    _governmentOnly = widget.governmentOnly;
     if (args is Map) {
+      final governmentOnly = args['governmentOnly'];
+      if (governmentOnly is bool) {
+        _governmentOnly = widget.governmentOnly || governmentOnly;
+      }
+
       final route = args['route'];
       if (route is String && route.trim().isNotEmpty) {
         _redirectRoute = route.trim();
@@ -60,6 +70,49 @@ class _LoginScreenState extends State<LoginScreen> {
       final destination = args['destination'];
       if (destination == 'admin') {
         _selectedDestination = _LoginDestination.admin;
+      } else if (destination == 'student') {
+        _selectedDestination = _LoginDestination.student;
+      } else if (destination == 'teacher') {
+        _selectedDestination = _LoginDestination.main;
+      }
+
+      if (_governmentOnly) {
+        _selectedDestination = _LoginDestination.main;
+        _adminAccessKeyController.clear();
+      }
+
+      final email = args['email'];
+      if (email is String && email.trim().isNotEmpty) {
+        _emailController.text = email.trim();
+      }
+
+      final password = args['password'];
+      if (password is String && password.isNotEmpty) {
+        _passwordController.text = password;
+      }
+
+      final adminAccessKey = args['adminAccessKey'];
+      if (adminAccessKey is String && adminAccessKey.trim().isNotEmpty) {
+        _adminAccessKeyController.text = adminAccessKey.trim();
+      }
+
+      final message = args['message'];
+      if (!_didShowRouteMessage &&
+          message is String &&
+          message.trim().isNotEmpty) {
+        final snackMessage = message.trim();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _didShowRouteMessage) {
+            return;
+          }
+          _didShowRouteMessage = true;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(snackMessage),
+              backgroundColor: AppTheme.successColor,
+            ),
+          );
+        });
       }
     }
 
@@ -85,14 +138,40 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _openGovernmentEntry() {
+    Navigator.pushReplacementNamed(
+      context,
+      '/gov-account-gateway',
+      arguments: const {'mode': 'login'},
+    );
+  }
+
+  void _openRegister() {
+    if (_governmentOnly) {
+      Navigator.pushReplacementNamed(context, '/gov-register');
+      return;
+    }
+
+    Navigator.pushNamed(context, '/register');
+  }
+
   String _defaultPostLoginRoute(AuthProvider authProvider) {
-    return authProvider.hasRegisteredFace ? '/home' : '/face-capture';
+    if (!authProvider.hasRegisteredFace) {
+      return '/face-capture';
+    }
+    return authProvider.user?.isStudent == true
+        ? '/student-dashboard'
+        : '/home';
   }
 
   String _resolvePostLoginRoute(AuthProvider authProvider) {
     if (_selectedDestination == _LoginDestination.admin &&
         authProvider.user?.isAdmin == true) {
       return '/admin';
+    }
+    if (_selectedDestination == _LoginDestination.student &&
+        authProvider.user?.isStudent == true) {
+      return '/student-dashboard';
     }
     return _defaultPostLoginRoute(authProvider);
   }
@@ -156,6 +235,33 @@ class _LoginScreenState extends State<LoginScreen> {
     return supervision.overview?.pendingInvitations.isNotEmpty == true;
   }
 
+  Future<void> _openMainLoginAfterGovernmentSignIn(
+    AuthProvider authProvider,
+  ) async {
+    final loginEmail = _emailController.text.trim();
+    final loginPassword = _passwordController.text;
+    final destination = authProvider.user?.isAdmin == true
+        ? 'admin'
+        : authProvider.user?.isStudent == true
+        ? 'student'
+        : 'teacher';
+
+    await authProvider.logout();
+    if (!mounted) return;
+
+    Navigator.pushReplacementNamed(
+      context,
+      '/login',
+      arguments: {
+        'destination': destination,
+        if (loginEmail.isNotEmpty) 'email': loginEmail,
+        if (loginPassword.isNotEmpty) 'password': loginPassword,
+        'message':
+            'Government account verified. Continue with the main login page.',
+      },
+    );
+  }
+
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -175,6 +281,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
+      if (_governmentOnly) {
+        await _openMainLoginAfterGovernmentSignIn(authProvider);
+        return;
+      }
+
       if (_redirectRoute != null) {
         Navigator.pushReplacementNamed(
           context,
@@ -212,9 +323,26 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } else {
+      final errorMessage = authProvider.error ?? language.tr('loginFailed');
+      if (_governmentOnly &&
+          errorMessage.contains('Admin access key is required')) {
+        Navigator.pushReplacementNamed(
+          context,
+          '/login',
+          arguments: {
+            'destination': 'admin',
+            'email': _emailController.text.trim(),
+            'password': _passwordController.text,
+            'message':
+                'Enter the admin access key on the main login page to continue.',
+          },
+        );
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.error ?? language.tr('loginFailed')),
+          content: Text(errorMessage),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -335,37 +463,70 @@ class _LoginScreenState extends State<LoginScreen> {
           style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
         ),
         const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _DashboardDestinationCard(
-                title: language.tr('mainDashboard'),
-                subtitle: language.tr('mainDashboardDescription'),
-                icon: Icons.dashboard_customize_outlined,
-                selected: _selectedDestination == _LoginDestination.main,
-                onTap: () {
-                  setState(() {
-                    _selectedDestination = _LoginDestination.main;
-                    _adminAccessKeyController.clear();
-                  });
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _DashboardDestinationCard(
-                title: language.tr('adminDashboard'),
-                subtitle: language.tr('adminDashboardDescription'),
-                icon: Icons.admin_panel_settings_outlined,
-                selected: _selectedDestination == _LoginDestination.admin,
-                onTap: () {
-                  setState(
-                    () => _selectedDestination = _LoginDestination.admin,
-                  );
-                },
-              ),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 720;
+            final cardWidth = isWide
+                ? (constraints.maxWidth - 24) / 3
+                : (constraints.maxWidth - 12) / 2;
+
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: cardWidth,
+                  child: _DashboardDestinationCard(
+                    title: context.t('Teacher'),
+                    subtitle: context.t(
+                      'Sign in as a teacher to open the attendance dashboard',
+                    ),
+                    icon: Icons.badge_outlined,
+                    selected: _selectedDestination == _LoginDestination.main,
+                    onTap: () {
+                      setState(() {
+                        _selectedDestination = _LoginDestination.main;
+                        _adminAccessKeyController.clear();
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _DashboardDestinationCard(
+                    title: context.t('Student'),
+                    subtitle: context.t(
+                      'Sign in as a student to see absent classes and records',
+                    ),
+                    icon: Icons.school_outlined,
+                    selected: _selectedDestination == _LoginDestination.student,
+                    onTap: () {
+                      setState(() {
+                        _selectedDestination = _LoginDestination.student;
+                        _adminAccessKeyController.clear();
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _DashboardDestinationCard(
+                    title: context.t('Admin'),
+                    subtitle: context.t(
+                      'Sign in as an admin to open the admin dashboard',
+                    ),
+                    icon: Icons.admin_panel_settings_outlined,
+                    selected: _selectedDestination == _LoginDestination.admin,
+                    onTap: () {
+                      setState(
+                        () => _selectedDestination = _LoginDestination.admin,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -494,7 +655,18 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildForm() {
     final language = context.language;
     final useDesktopLayout = ResponsiveLayout.isDesktop(context);
-    final isAdminDestination = _selectedDestination == _LoginDestination.admin;
+    final isAdminDestination =
+        !_governmentOnly && _selectedDestination == _LoginDestination.admin;
+    final title = _governmentOnly
+        ? context.t('Sign in to your government account')
+        : language.tr('welcomeBack');
+    final subtitle = _governmentOnly
+        ? context.t('Enter your government email and password to continue')
+        : isAdminDestination
+        ? context.t('Sign in to the admin dashboard with your access key')
+        : _selectedDestination == _LoginDestination.student
+        ? context.t('Sign in as a student to review your absent classes')
+        : language.tr('signInTeacherDashboard');
 
     return AutofillGroup(
       child: Form(
@@ -503,9 +675,18 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: const LanguageSelector(compact: true),
+            Row(
+              children: [
+                if (_governmentOnly)
+                  IconButton(
+                    onPressed: _openGovernmentEntry,
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    color: AppTheme.textSecondary,
+                    tooltip: context.t('Back'),
+                  ),
+                const Spacer(),
+                const LanguageSelector(compact: true),
+              ],
             ),
             if (!useDesktopLayout) ...[
               const SizedBox(height: 24),
@@ -535,7 +716,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ] else
               const SizedBox(height: 12),
             Text(
-              language.tr('welcomeBack'),
+              title,
               style: TextStyle(
                 fontSize: useDesktopLayout ? 32 : 28,
                 fontWeight: FontWeight.bold,
@@ -545,20 +726,18 @@ class _LoginScreenState extends State<LoginScreen> {
             ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0),
             const SizedBox(height: 8),
             Text(
-              isAdminDestination
-                  ? context.t(
-                      'Sign in to the admin dashboard with your access key',
-                    )
-                  : language.tr('signInTeacherDashboard'),
+              subtitle,
               style: const TextStyle(
                 fontSize: 15,
                 color: AppTheme.textSecondary,
               ),
             ).animate().fadeIn(delay: 200.ms),
-            const SizedBox(height: 24),
-            _buildDashboardSelector(
-              language,
-            ).animate().fadeIn(delay: 250.ms).slideY(begin: 0.05, end: 0),
+            if (!_governmentOnly) ...[
+              const SizedBox(height: 24),
+              _buildDashboardSelector(
+                language,
+              ).animate().fadeIn(delay: 250.ms).slideY(begin: 0.05, end: 0),
+            ],
             if (isAdminDestination) ...[
               const SizedBox(height: 18),
               _buildAdminKeyNotice()
@@ -696,7 +875,9 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  '${language.tr('dontHaveAccount')} ',
+                  _governmentOnly
+                      ? '${context.t('Need a government account?')} '
+                      : '${language.tr('dontHaveAccount')} ',
                   style: const TextStyle(
                     color: AppTheme.textSecondary,
                     fontSize: 13,
@@ -705,9 +886,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, '/register'),
+                    onTap: _openRegister,
                     child: Text(
-                      language.tr('signUp'),
+                      _governmentOnly
+                          ? context.t('Create Government Account')
+                          : language.tr('signUp'),
                       style: const TextStyle(
                         color: AppTheme.primaryLight,
                         fontWeight: FontWeight.bold,

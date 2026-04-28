@@ -147,6 +147,29 @@ class AppStrings {
     'Register': 'تۆماربوون',
     'Create your account': 'هەژمارەکەت دروست بکە',
     'Create Account': 'دروستکردنی هەژمار',
+    'Sign in to your government account': 'بچۆرە ژوورەوە بۆ هەژمارە حکومییەکەت',
+    'Enter your government email and password to continue':
+        'ئیمەیڵ و وشەی نهێنی حکومییەکەت بنووسە بۆ بەردەوامبوون',
+    'Continue to Sign In': 'بەردەوام بە چوونەژوورەوە',
+    'Government sign-in required': 'چوونەژوورەوەی حکومی پێویستە',
+    'Use your official government email and password to access the attendance system.':
+        'بۆ دەستگەیشتن بە سیستەمی ئامادەبوون، ئیمەیڵ و وشەی نهێنی فەرمی حکومییەکەت بەکاربهێنە.',
+    'Before you continue': 'پێش بەردەوامبوون',
+    'Have your government email ready': 'ئیمەیڵی حکومییەکەت ئامادە بکە',
+    'Enter your password on the next screen':
+        'لە شاشەی داهاتوودا وشەی نهێنییەکەت بنووسە',
+    'Continue to the secure sign-in form':
+        'بەردەوام بە فۆرمی پارێزراوی چوونەژوورەوە',
+    'Government Attendance Access': 'دەستگەیشتنی حکومی بۆ ئامادەبوون',
+    'Protected sign-in experience': 'ئەزموونی پارێزراوی چوونەژوورەوە',
+    'Review the access requirements before opening the sign-in form':
+        'پێش کردنەوەی فۆرمی چوونەژوورەوە، داواکارییەکانی دەستگەیشتن بخوێنەوە.',
+    'Government account access': 'دەستگەیشتن بە هەژماری حکومی',
+    'Use the official credentials assigned to your organization':
+        'ئەو زانیارییە فەرمییانە بەکاربهێنە کە بۆ دامەزراوەکەت دیاریکراون.',
+    'Continue securely': 'بە شێوەی پارێزراو بەردەوام بە',
+    'Move to the existing login page when you are ready to sign in':
+        'کاتێک ئامادەی چوونەژوورەوە بیت، بڕۆ بۆ پەڕەی چوونەژوورەوەی هەنووکەیی.',
     'Already have an account?': 'پێشتر هەژمارت هەیە؟',
     'Login': 'چوونەژوورەوە',
     'Room Scanner': 'پشکنەری ژوور',
